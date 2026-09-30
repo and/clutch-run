@@ -41,12 +41,12 @@ const dt = new Drivetrain();
 const sound = new Sound();
 const hud = new Hud(document.getElementById('hud'), world);
 
-const player = { x: 0, z: 0, y: 0, yaw: 0, steer: 0, pitch: 0, roll: 0, car: addInterior(makeCar(0xe0730f)) };
+const player = { x: 0, z: 0, y: 0, yaw: 0, steer: 0, steerVel: 0, head: 0, pitch: 0, roll: 0, car: addInterior(makeCar(0xe0730f)) };
 scene.add(player.car.group);
 
 function spawnAt(d) {
   const p = world.pointAt(d, LANE);
-  player.x = p.x; player.z = p.z; player.y = p.y; player.yaw = Math.atan2(p.tx, p.tz); player.steer = 0;
+  player.x = p.x; player.z = p.z; player.y = p.y; player.yaw = Math.atan2(p.tx, p.tz); player.steer = player.steerVel = player.head = 0;
   dt.v = 0;
 }
 
@@ -257,7 +257,11 @@ function update(h) {
   const steerIn = (down(...K.left) ? 1 : 0) - (down(...K.right) ? 1 : 0);
   const maxSteer = 0.55 / (1 + sp * 0.07);
   const tgt = steerIn * maxSteer;
-  player.steer += clamp(tgt - player.steer, -(steerIn ? 2.2 : 3.5) * h, (steerIn ? 2.2 : 3.5) * h);
+  // The wheel turns like a driver's hands move it: a critically damped spring eases in and out
+  // instead of jumping straight to a fixed turning rate, so the car never snaps into a turn.
+  const sw = steerIn ? 10 : 12;
+  player.steerVel += (sw * sw * (tgt - player.steer) - 2 * sw * player.steerVel) * h;
+  player.steer += player.steerVel * h;
 
   // surface and slope
   const fx = Math.sin(player.yaw), fz = Math.cos(player.yaw), lx = fz, lz = -fx;
@@ -326,7 +330,8 @@ function update(h) {
     const gp = player.car.group; gp.updateMatrixWorld();
     seat.set(DRIVER.x, DRIVER.y, DRIVER.z); gp.localToWorld(seat);
     camera.position.copy(seat);
-    head.setFromAxisAngle(UP, player.steer * 0.35);
+    player.head += (player.steer * 0.35 - player.head) * (1 - Math.exp(-h * 3)); // the eyes follow the turn, a beat behind the hands
+    head.setFromAxisAngle(UP, player.head);
     camera.quaternion.copy(gp.quaternion).multiply(flip).multiply(head);
     if (state.shake > 0) { camera.position.x += (Math.random() - 0.5) * state.shake * 0.3; camera.position.y += (Math.random() - 0.5) * state.shake * 0.3; state.shake = Math.max(0, state.shake - h * 1.2); }
     camera.fov = 70; camera.updateProjectionMatrix();
