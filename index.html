@@ -24,18 +24,19 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 .card{width:min(620px,100%);max-height:calc(100% - 16px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px}
 h1{font:700 clamp(44px,9vw,72px)/.95 var(--disp);text-transform:uppercase;margin:0 0 8px;letter-spacing:.01em}
 h1 span{color:var(--accent)}
-.dek{font-size:14px;line-height:1.6;color:var(--muted);margin:0 0 20px}
-h2{font:600 15px var(--disp);text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin:22px 0 10px}
+.dek{font-size:14px;line-height:1.6;color:var(--muted);margin:0 0 6px}
+h2{font:600 15px var(--disp);text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin:18px 0 8px}
 .modes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .modes button{text-align:left;padding:14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer;display:grid;gap:4px;font:inherit}
 .modes button b{font:700 22px var(--disp)}
 .modes button span{font-size:12px;color:var(--muted);line-height:1.5}
 .modes button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
-.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;margin:16px 0 0}
+.keys{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:7px 12px;font-size:13px;margin:16px 0 0;align-items:center}
+@media (max-width:560px){.keys{grid-template-columns:auto 1fr}}
 .keys dt{white-space:nowrap}
 .keys dd{margin:0;color:var(--muted)}
 kbd{font:500 12px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:#161f28;color:var(--fg)}
-.go{margin-top:24px;width:100%;padding:16px;border:0;border-radius:10px;background:var(--accent);color:#1a0e02;font:700 22px var(--disp);text-transform:uppercase;letter-spacing:.1em;cursor:pointer}
+.go{margin-top:20px;width:100%;padding:16px;border:0;border-radius:10px;background:var(--accent);color:#1a0e02;font:700 22px var(--disp);text-transform:uppercase;letter-spacing:.1em;cursor:pointer}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .note{font-size:12px;color:var(--muted);margin-top:14px;line-height:1.5}
 .toast-card{position:fixed;left:50%;top:22%;transform:translateX(-50%);width:min(520px,calc(100% - 32px));background:var(--panel);border:1px solid var(--good);border-radius:14px;padding:18px 22px;text-align:center}
@@ -52,41 +53,42 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 <div class="overlay" id="menu">
   <div class="card">
     <h1>Clutch <span>Run</span></h1>
-    <p class="dek">Drive a manual hatchback round a hill loop: village streets, a steep climb, a gravel stretch and a long descent. You change the gears. Keep the revs in the green, keep left, and don't hit anyone.</p>
+    <p class="dek">Drive a manual car round a hill loop. You change the gears. Keep the revs in the green and keep left.</p>
     <h2>Clutch</h2>
     <div class="modes">
-      <button type="button" data-mode="auto" aria-pressed="true"><b>Auto clutch</b><span>You pick the gears; the clutch looks after itself. Best to start with.</span></button>
-      <button type="button" data-mode="manual" aria-pressed="false"><b>Full manual</b><span>Hold the clutch key to change gear, or it grinds. Let go and the pedal rises slowly through the bite point; tap the key to hold it there. Too few revs and you stall.</span></button>
+      <button type="button" data-mode="auto" aria-pressed="true"><b>Auto clutch</b><span>You change gear, the clutch is automatic. Start here.</span></button>
+      <button type="button" data-mode="manual" aria-pressed="false"><b>Full manual</b><span>You work the clutch too. Tap it to hold the bite point.</span></button>
     </div>
     <h2>Keys</h2>
     <div class="modes">
-      <button type="button" data-layout="standard" aria-pressed="true"><b>Standard</b><span>W / S or ↑ / ↓ to go and stop, A / D or ← / → to steer, Shift for the clutch.</span></button>
-      <button type="button" data-layout="pedals" aria-pressed="false"><b>Pedals on arrows</b><span>← clutch, ↓ brake, → accelerator, in the same order as a real car's pedals. Steer with A / D.</span></button>
+      <button type="button" data-layout="standard" aria-pressed="true"><b>Standard</b><span>W / S go and stop, A / D steer, Shift clutch.</span></button>
+      <button type="button" data-layout="pedals" aria-pressed="false"><b>Pedals on arrows</b><span>← clutch, ↓ brake, → accelerator, like real pedals.</span></button>
     </div>
     <dl class="keys" data-keys="standard">
-      <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Accelerate · brake (↑ ↓ work too)</dd>
-      <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Steer (← → work too)</dd>
-      <dt><kbd>Shift</kbd></dt><dd>Clutch pedal (full manual)</dd>
+      <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Go · brake</dd>
+      <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Steer</dd>
+      <dt><kbd>Shift</kbd></dt><dd>Clutch</dd>
       <dt><kbd>Space</kbd></dt><dd>Handbrake</dd>
-      <dt><kbd>1</kbd>–<kbd>5</kbd> <kbd>R</kbd> <kbd>N</kbd></dt><dd>Select a gear, reverse or neutral</dd>
-      <dt><kbd>E</kbd> <kbd>Q</kbd></dt><dd>Change up · change down</dd>
-      <dt><kbd>I</kbd></dt><dd>Restart the engine after a stall</dd>
-      <dt><kbd>H</kbd> <kbd>V</kbd> <kbd>T</kbd></dt><dd>Horn · camera · back to the road</dd>
-      <dt><kbd>C</kbd> <kbd>M</kbd> <kbd>P</kbd></dt><dd>Switch clutch mode · sound · pause</dd>
+      <dt><kbd>1</kbd>–<kbd>5</kbd> <kbd>R</kbd> <kbd>N</kbd></dt><dd>Gears</dd>
+      <dt><kbd>E</kbd> <kbd>Q</kbd></dt><dd>Gear up · down</dd>
+      <dt><kbd>I</kbd></dt><dd>Restart engine</dd>
+      <dt><kbd>V</kbd></dt><dd>Change view</dd>
+      <dt><kbd>H</kbd> <kbd>T</kbd></dt><dd>Horn · back to road</dd>
+      <dt><kbd>C</kbd> <kbd>M</kbd> <kbd>P</kbd></dt><dd>Clutch mode · sound · pause</dd>
     </dl>
     <dl class="keys" data-keys="pedals" hidden>
-      <dt><kbd>←</kbd> <kbd>↓</kbd> <kbd>→</kbd></dt><dd>Clutch · brake · accelerator</dd>
-      <dt><kbd>↑</kbd></dt><dd>Handbrake (Space works too)</dd>
+      <dt><kbd>←</kbd> <kbd>↓</kbd> <kbd>→</kbd></dt><dd>Clutch · brake · go</dd>
       <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Steer</dd>
-      <dt><kbd>E</kbd> <kbd>Q</kbd></dt><dd>Change up · change down (right next to A and D)</dd>
-      <dt><kbd>1</kbd>–<kbd>5</kbd> <kbd>R</kbd> <kbd>N</kbd></dt><dd>Select a gear, reverse or neutral</dd>
-      <dt><kbd>I</kbd></dt><dd>Restart the engine after a stall</dd>
-      <dt><kbd>H</kbd> <kbd>V</kbd> <kbd>T</kbd></dt><dd>Horn · camera · back to the road</dd>
-      <dt><kbd>C</kbd> <kbd>M</kbd> <kbd>P</kbd></dt><dd>Switch clutch mode · sound · pause</dd>
+      <dt><kbd>↑</kbd></dt><dd>Handbrake</dd>
+      <dt><kbd>E</kbd> <kbd>Q</kbd></dt><dd>Gear up · down</dd>
+      <dt><kbd>1</kbd>–<kbd>5</kbd> <kbd>R</kbd> <kbd>N</kbd></dt><dd>Gears</dd>
+      <dt><kbd>I</kbd></dt><dd>Restart engine</dd>
+      <dt><kbd>V</kbd></dt><dd>Change view</dd>
+      <dt><kbd>H</kbd> <kbd>T</kbd></dt><dd>Horn · back to road</dd>
+      <dt><kbd>C</kbd> <kbd>M</kbd> <kbd>P</kbd></dt><dd>Clutch mode · sound · pause</dd>
     </dl>
-    <p class="note">Some laptop keyboards can't register three or more keys held at once. If a key seems to be ignored, try the other layout.</p>
     <button type="button" class="go" id="go">Start driving</button>
-    <p class="note">Needs a keyboard. Sound starts when you press Start. Your choices are remembered in this browser.</p>
+    <p class="note">Keys not responding? Some laptops can't read three keys at once; try the other layout.</p>
   </div>
 </div>
 

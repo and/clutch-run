@@ -3,7 +3,7 @@ import { World, LANE, ROAD_HALF, HALF } from './world.js';
 import { Drivetrain, SPEC, TOP_GEAR, BITE_TOP, BITE_BOTTOM } from './drivetrain.js';
 import { Sound } from './audio.js';
 import { Hud, fmtTime } from './hud.js';
-import { makeCar, poseCar } from './cars.js';
+import { makeCar, poseCar, addInterior, DRIVER } from './cars.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ORD = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th' };
@@ -20,7 +20,7 @@ const scene = new THREE.Scene();
 const HORIZON = 0xcfdde6;
 scene.background = new THREE.Color(HORIZON);
 scene.fog = new THREE.Fog(HORIZON, 180, 950);
-const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.3, 2000);
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.05, 2000);
 
 scene.add(new THREE.HemisphereLight(0xe3efff, 0x55623a, 1.15));
 const sun = new THREE.DirectionalLight(0xfff0da, 2.3); sun.position.set(-400, 520, 260); scene.add(sun);
@@ -41,7 +41,7 @@ const dt = new Drivetrain();
 const sound = new Sound();
 const hud = new Hud(document.getElementById('hud'), world);
 
-const player = { x: 0, z: 0, y: 0, yaw: 0, steer: 0, pitch: 0, roll: 0, car: makeCar(0xe0730f) };
+const player = { x: 0, z: 0, y: 0, yaw: 0, steer: 0, pitch: 0, roll: 0, car: addInterior(makeCar(0xe0730f)) };
 scene.add(player.car.group);
 
 function spawnAt(d) {
@@ -126,7 +126,7 @@ window.addEventListener('keydown', e => {
     if (dt.crank()) hud.toast('Starting…');
   }
   else if (c === 'KeyC') { dt.autoClutch = !dt.autoClutch; hud.toast(dt.autoClutch ? 'Auto clutch on' : `Manual clutch: hold ${K.clutchName} to press it`); }
-  else if (c === 'KeyV') state.cam = (state.cam + 1) % 2;
+  else if (c === 'KeyV') { state.cam = (state.cam + 1) % CAMS.length; hud.toast(CAMS[state.cam]); }
   else if (c === 'KeyT') { const n = world.nearest(player.x, player.z, 6); spawnAt(n ? n.i * world.ds : 0); dt.setGear(0); hud.toast('Back on the road'); }
   else if (c === 'KeyM') { sound.setMuted(!sound.muted); hud.toast(sound.muted ? 'Sound off' : 'Sound on'); }
 });
@@ -232,6 +232,8 @@ function coach(n, grade) {
 }
 
 /* ---------- Main update ---------- */
+const CAMS = ['Behind the car', "Driver's seat", 'Bonnet'];
+const seat = new THREE.Vector3(), flip = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), head = new THREE.Quaternion(), UP = new THREE.Vector3(0, 1, 0);
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
 let camInit = false;
 
@@ -317,7 +319,19 @@ function update(h) {
 
   // camera
   const cam = state.cam;
+  player.car.interior.visible = cam === 1;
   let want, look;
+  if (cam === 1) {
+    // Driver's seat: fixed to the car, so it pitches and rolls with it; the head turns a little into corners
+    const gp = player.car.group; gp.updateMatrixWorld();
+    seat.set(DRIVER.x, DRIVER.y, DRIVER.z); gp.localToWorld(seat);
+    camera.position.copy(seat);
+    head.setFromAxisAngle(UP, player.steer * 0.35);
+    camera.quaternion.copy(gp.quaternion).multiply(flip).multiply(head);
+    if (state.shake > 0) { camera.position.x += (Math.random() - 0.5) * state.shake * 0.3; camera.position.y += (Math.random() - 0.5) * state.shake * 0.3; state.shake = Math.max(0, state.shake - h * 1.2); }
+    camera.fov = 70; camera.updateProjectionMatrix();
+    camInit = false;
+  } else {
   if (cam === 0) {
     want = new THREE.Vector3(player.x - fx * 8.5, player.y + 3.4, player.z - fz * 8.5);
     want.y = Math.max(want.y, world.surfaceAt(want.x, want.z).y + 1.6);
@@ -333,6 +347,7 @@ function update(h) {
   if (state.shake > 0) { camera.position.x += (Math.random() - 0.5) * state.shake; camera.position.y += (Math.random() - 0.5) * state.shake; state.shake = Math.max(0, state.shake - h * 1.2); }
   camera.lookAt(camLook);
   camera.fov = 60 + Math.min(12, sp * 0.3); camera.updateProjectionMatrix();
+  }
 
   // HUD
   const c = coach(n, sinG);
