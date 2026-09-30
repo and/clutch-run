@@ -62,6 +62,20 @@ for (let k = 0; k < 11; k++) {
 }
 
 /* ---------- Input ---------- */
+// Two key layouts. "pedals" puts the three pedals on ← ↓ → in the same order as in a real car.
+const LAYOUTS = {
+  standard: {
+    throttle: ['KeyW', 'ArrowUp'], brake: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
+    clutch: ['ShiftLeft', 'ShiftRight'], handbrake: ['Space'], clutchName: 'Shift', goName: 'W',
+  },
+  pedals: {
+    throttle: ['ArrowRight'], brake: ['ArrowDown'], left: ['KeyA'], right: ['KeyD'],
+    clutch: ['ArrowLeft', 'ShiftLeft', 'ShiftRight'], handbrake: ['ArrowUp', 'Space'], clutchName: '←', goName: '→',
+  },
+};
+let layoutName = 'standard';
+try { if (LAYOUTS[localStorage.getItem('clutchrun-layout')]) layoutName = localStorage.getItem('clutchrun-layout'); } catch (e) {}
+let K = LAYOUTS[layoutName];
 const keys = new Set();
 const state = {
   started: false, paused: false, cam: 0, horn: false,
@@ -80,7 +94,7 @@ function toastOnce(key, text, tone, gap = 4) {
 function requestGear(g) {
   if (!state.started || g === dt.gear) return;
   if (!dt.autoClutch && dt.pedal < 0.8) {
-    sound.grind(); state.grinds++; hud.toast('Press the clutch (Shift) first', 'warn'); return;
+    sound.grind(); state.grinds++; hud.toast(`Press the clutch (${K.clutchName}) first`, 'warn'); return;
   }
   if (g === -1 && dt.v > 0.8) { sound.grind(); state.grinds++; hud.toast('Stop before selecting reverse', 'warn'); return; }
   if (g > 0 && dt.v < -0.8) { sound.grind(); state.grinds++; hud.toast('Stop before selecting a forward gear', 'warn'); return; }
@@ -107,11 +121,11 @@ window.addEventListener('keydown', e => {
   else if (c === 'KeyQ') requestGear(dt.gear <= 0 ? dt.gear : dt.gear - 1);
   else if (c === 'KeyI') {
     if (dt.on) return;
-    if (dt.gear !== 0 && (dt.autoClutch ? false : dt.pedal < 0.8)) { hud.toast('Clutch in (Shift) or select neutral (N) to start', 'warn'); return; }
+    if (dt.gear !== 0 && (dt.autoClutch ? false : dt.pedal < 0.8)) { hud.toast(`Clutch in (${K.clutchName}) or select neutral (N) to start`, 'warn'); return; }
     if (dt.gear !== 0 && dt.autoClutch) dt.setGear(0);
     if (dt.crank()) hud.toast('Starting…');
   }
-  else if (c === 'KeyC') { dt.autoClutch = !dt.autoClutch; hud.toast(dt.autoClutch ? 'Auto clutch on' : 'Manual clutch: hold Shift to press it'); }
+  else if (c === 'KeyC') { dt.autoClutch = !dt.autoClutch; hud.toast(dt.autoClutch ? 'Auto clutch on' : `Manual clutch: hold ${K.clutchName} to press it`); }
   else if (c === 'KeyV') state.cam = (state.cam + 1) % 2;
   else if (c === 'KeyT') { const n = world.nearest(player.x, player.z, 6); spawnAt(n ? n.i * world.ds : 0); dt.setGear(0); hud.toast('Back on the road'); }
   else if (c === 'KeyM') { sound.setMuted(!sound.muted); hud.toast(sound.muted ? 'Sound off' : 'Sound on'); }
@@ -220,14 +234,14 @@ let camInit = false;
 function update(h) {
   // pedals and steering
   const ramp = (cur, on, up, dn) => clamp(cur + (on ? up : -dn) * h, 0, 1);
-  state.throttle = ramp(state.throttle, down('KeyW', 'ArrowUp'), 3.5, 6);
-  state.brake = ramp(state.brake, down('KeyS', 'ArrowDown'), 4, 8);
-  state.handbrake = down('Space') ? 1 : 0;
-  dt.pedal = clamp(dt.pedal + (down('ShiftLeft', 'ShiftRight') ? 8 : -1.6) * h, 0, 1);
+  state.throttle = ramp(state.throttle, down(...K.throttle), 3.5, 6);
+  state.brake = ramp(state.brake, down(...K.brake), 4, 8);
+  state.handbrake = down(...K.handbrake) ? 1 : 0;
+  dt.pedal = clamp(dt.pedal + (down(...K.clutch) ? 8 : -1.6) * h, 0, 1);
   state.horn = down('KeyH');
 
   const sp = Math.abs(dt.v);
-  const steerIn = (down('KeyA', 'ArrowLeft') ? 1 : 0) - (down('KeyD', 'ArrowRight') ? 1 : 0);
+  const steerIn = (down(...K.left) ? 1 : 0) - (down(...K.right) ? 1 : 0);
   const maxSteer = 0.55 / (1 + sp * 0.07);
   const tgt = steerIn * maxSteer;
   player.steer += clamp(tgt - player.steer, -(steerIn ? 2.2 : 3.5) * h, (steerIn ? 2.2 : 3.5) * h);
@@ -317,7 +331,7 @@ function update(h) {
     rpm: dt.rpm, kmh: sp * 3.6, gearLabel: gearName(dt.gear), on: dt.on || dt.crankT > 0,
     suggest: c.suggest, hint: c.hint,
     clutch: dt.autoClutch ? (dt.gear === 0 ? 0 : 1 - dt.eng) : dt.pedal, brake: state.brake, throttle: state.throttle,
-    auto: dt.autoClutch, section, lap: state.lap, lapTime: state.lapTime, best: state.best,
+    auto: dt.autoClutch, clutchKey: K.clutchName, section, lap: state.lap, lapTime: state.lapTime, best: state.best,
     crashes: state.crashes, stalls: state.stalls, grinds: state.grinds,
     green: state.driveT > 1 ? Math.round(100 * state.greenT / state.driveT) : 100,
     traffic, x: player.x, z: player.z, yaw: player.yaw,
@@ -344,13 +358,21 @@ function showLap(t) {
   $('lap-text').textContent = `Lap ${state.lap} in ${fmtTime(t)}. Crashes ${state.crashes}, stalls ${state.stalls}, revs in the green ${pct}% of the time.`;
   $('lap').hidden = false; clearTimeout(showLap.t); showLap.t = setTimeout(() => { $('lap').hidden = true; }, 7000);
 }
+function setLayout(name) {
+  layoutName = name; K = LAYOUTS[name];
+  document.querySelectorAll('[data-layout]').forEach(x => x.setAttribute('aria-pressed', x.dataset.layout === name));
+  document.querySelectorAll('[data-keys]').forEach(x => { x.hidden = x.dataset.keys !== name; });
+  try { localStorage.setItem('clutchrun-layout', name); } catch (e) {}
+}
+document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.layout)));
+setLayout(layoutName);
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('[data-mode]').forEach(x => x.setAttribute('aria-pressed', x === b));
   dt.autoClutch = b.dataset.mode === 'auto';
 }));
 $('go').addEventListener('click', () => {
   sound.init(); state.started = true; $('menu').hidden = true;
-  hud.toast('Press 1 for first gear, then W to go', 'fg');
+  hud.toast(`Press 1 for first gear, then ${K.goName} to go`, 'fg');
   canvas.focus();
 });
 $('resume').addEventListener('click', () => setPaused(false));

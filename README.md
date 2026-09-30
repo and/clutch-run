@@ -6,6 +6,8 @@ Play it at **https://and.github.io/clutch-run/**
 
 ## Controls
 
+Pick a layout on the start screen. **Standard** is below. **Pedals on arrows** puts the clutch, brake and accelerator on ← ↓ →, like a real car's pedals, with ↑ as the handbrake and A / D to steer.
+
 | Keys | Action |
 | --- | --- |
 | W / S | Accelerate / brake |

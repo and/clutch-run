@@ -31,7 +31,7 @@ h2{font:600 15px var(--disp);text-transform:uppercase;letter-spacing:.14em;color
 .modes button b{font:700 22px var(--disp)}
 .modes button span{font-size:12px;color:var(--muted);line-height:1.5}
 .modes button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
-.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;margin:0}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;margin:16px 0 0}
 .keys dt{white-space:nowrap}
 .keys dd{margin:0;color:var(--muted)}
 kbd{font:500 12px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:#161f28;color:var(--fg)}
@@ -56,22 +56,37 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
     <h2>Clutch</h2>
     <div class="modes">
       <button type="button" data-mode="auto" aria-pressed="true"><b>Auto clutch</b><span>You pick the gears; the clutch looks after itself. Best to start with.</span></button>
-      <button type="button" data-mode="manual" aria-pressed="false"><b>Full manual</b><span>Hold Shift for the clutch. Change gear without it and it grinds. Let it out too fast and you stall.</span></button>
+      <button type="button" data-mode="manual" aria-pressed="false"><b>Full manual</b><span>Hold the clutch key to change gear, or it grinds. Let it out without enough revs and you stall.</span></button>
     </div>
-    <h2>Controls</h2>
-    <dl class="keys">
-      <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Accelerate · brake</dd>
-      <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Steer (arrow keys work too)</dd>
-      <dt><kbd>1</kbd>–<kbd>5</kbd> <kbd>R</kbd> <kbd>N</kbd></dt><dd>Select a gear, reverse or neutral</dd>
-      <dt><kbd>E</kbd> <kbd>Q</kbd></dt><dd>Change up · change down</dd>
+    <h2>Keys</h2>
+    <div class="modes">
+      <button type="button" data-layout="standard" aria-pressed="true"><b>Standard</b><span>W / S or ↑ / ↓ to go and stop, A / D or ← / → to steer, Shift for the clutch.</span></button>
+      <button type="button" data-layout="pedals" aria-pressed="false"><b>Pedals on arrows</b><span>← clutch, ↓ brake, → accelerator, in the same order as a real car's pedals. Steer with A / D.</span></button>
+    </div>
+    <dl class="keys" data-keys="standard">
+      <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Accelerate · brake (↑ ↓ work too)</dd>
+      <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Steer (← → work too)</dd>
       <dt><kbd>Shift</kbd></dt><dd>Clutch pedal (full manual)</dd>
       <dt><kbd>Space</kbd></dt><dd>Handbrake</dd>
+      <dt><kbd>1</kbd>–<kbd>5</kbd> <kbd>R</kbd> <kbd>N</kbd></dt><dd>Select a gear, reverse or neutral</dd>
+      <dt><kbd>E</kbd> <kbd>Q</kbd></dt><dd>Change up · change down</dd>
       <dt><kbd>I</kbd></dt><dd>Restart the engine after a stall</dd>
       <dt><kbd>H</kbd> <kbd>V</kbd> <kbd>T</kbd></dt><dd>Horn · camera · back to the road</dd>
       <dt><kbd>C</kbd> <kbd>M</kbd> <kbd>P</kbd></dt><dd>Switch clutch mode · sound · pause</dd>
     </dl>
+    <dl class="keys" data-keys="pedals" hidden>
+      <dt><kbd>←</kbd> <kbd>↓</kbd> <kbd>→</kbd></dt><dd>Clutch · brake · accelerator</dd>
+      <dt><kbd>↑</kbd></dt><dd>Handbrake (Space works too)</dd>
+      <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Steer</dd>
+      <dt><kbd>E</kbd> <kbd>Q</kbd></dt><dd>Change up · change down (right next to A and D)</dd>
+      <dt><kbd>1</kbd>–<kbd>5</kbd> <kbd>R</kbd> <kbd>N</kbd></dt><dd>Select a gear, reverse or neutral</dd>
+      <dt><kbd>I</kbd></dt><dd>Restart the engine after a stall</dd>
+      <dt><kbd>H</kbd> <kbd>V</kbd> <kbd>T</kbd></dt><dd>Horn · camera · back to the road</dd>
+      <dt><kbd>C</kbd> <kbd>M</kbd> <kbd>P</kbd></dt><dd>Switch clutch mode · sound · pause</dd>
+    </dl>
+    <p class="note">Some laptop keyboards can't register three or more keys held at once. If a key seems to be ignored, try the other layout.</p>
     <button type="button" class="go" id="go">Start driving</button>
-    <p class="note">Needs a keyboard. Sound starts when you press Start.</p>
+    <p class="note">Needs a keyboard. Sound starts when you press Start. Your choices are remembered in this browser.</p>
   </div>
 </div>
 
