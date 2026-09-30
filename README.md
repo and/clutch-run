@@ -14,7 +14,7 @@ Pick a layout on the start screen. **Standard** is below. **Pedals on arrows** p
 | A / D (or arrows) | Steer |
 | 1–5, R, N | Select a gear, reverse, neutral |
 | E / Q | Change up / change down |
-| Shift | Clutch pedal (full manual mode) |
+| Shift | Clutch pedal (full manual mode). Let go and it rises slowly through the bite point; tap to hold it there |
 | Space | Handbrake |
 | I | Restart the engine after a stall |
 | H / V / T | Horn / camera / back to the road |

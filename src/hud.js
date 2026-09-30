@@ -108,13 +108,19 @@ export class Hud {
         g.fillText(`${s.suggest.dir > 0 ? '▲' : '▼'} ${s.suggest.gear}`, cx, cy + R * 0.3);
       }
     }
-    const bars = [['C', s.clutch, C.dim], ['B', s.brake, C.bad], ['A', s.throttle, C.good]];
+    const [b0, b1] = s.bite, inBite = !s.auto && s.clutch > b0 && s.clutch < b1;
+    const clutchCol = s.auto ? C.dim : inBite ? C.warn : s.clutch >= b1 ? C.dim : C.good;
+    const bars = [['C', s.clutch, clutchCol], ['B', s.brake, C.bad], ['A', s.throttle, C.good]];
     const bw = R * 0.18, bh = R * 0.42, by = cy + R * 0.48;
     bars.forEach(([lab, v, col], i) => {
       const bx = cx + (i - 1) * R * 0.38 - bw / 2;
       this.round(bx, by, bw, bh, 3, 'rgba(255,255,255,0.1)');
+      if (i === 0 && !s.auto) { // bite zone marked on the clutch bar
+        g.fillStyle = 'rgba(224,174,58,0.22)'; g.fillRect(bx - 2, by + bh * (1 - b1), bw + 4, bh * (b1 - b0));
+      }
       if (v > 0.01) this.round(bx, by + bh * (1 - v), bw, bh * v, 3, col);
       g.fillStyle = C.dim; g.font = `600 ${Math.round(R * 0.12)}px ${DISP}`; g.fillText(lab, bx + bw / 2, by + bh + R * 0.1);
+      if (i === 0 && inBite) { g.fillStyle = C.warn; g.textAlign = 'right'; g.fillText('BITE', bx - R * 0.08, by + bh / 2); g.textAlign = 'center'; }
     });
 
     // Top-left: where you are and how you're doing

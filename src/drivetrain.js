@@ -8,6 +8,8 @@ export const SPEC = {
   Ie: 0.16, clutchMax: 240, wheelbase: 2.5,
 };
 export const TOP_GEAR = 5;
+// Clutch pedal travel (0 = foot off, 1 = pressed to the floor). Between these two points it slips: the bite zone.
+export const BITE_TOP = 0.88, BITE_BOTTOM = 0.38;
 
 const TQ = [[0, 50], [800, 72], [1500, 92], [2500, 106], [3500, 113], [4200, 115], [5000, 111], [6000, 101], [7000, 86], [8000, 60]];
 export function torqueAt(rpm) {
@@ -59,7 +61,7 @@ export class Drivetrain {
           eng = clamp((rpm - 1000) / 900, 0, 1);
           if (this.wheelRpmFor(this.gear) > 1250 && rpm > 1150) eng = 1;
         }
-      } else eng = clamp((1 - this.pedal - 0.12) / 0.5, 0, 1);
+      } else eng = clamp((BITE_TOP - this.pedal) / (BITE_TOP - BITE_BOTTOM), 0, 1);
       this.eng = eng;
 
       // Engine torque: throttle, an idle governor, and internal drag
@@ -68,14 +70,15 @@ export class Drivetrain {
       if (this.on) {
         const thr = rpm > SPEC.limiter ? 0 : inp.throttle;
         const idleW = SPEC.idle / RPM;
-        const gov = clamp(6 + 0.045 * idleW + (idleW - this.omega) * 2.5, 0, 60);
+        const gov = clamp(6 + 0.045 * idleW + (idleW - this.omega) * 4, 0, 85);
         drive = Math.max(thr * torqueAt(rpm), gov);
       }
       const Te = drive - drag;
 
       // Clutch transmits torque up to its grip limit
       const ww = this.v / SPEC.wheelR * G;
-      const cap = eng * SPEC.clutchMax;
+      // grip builds slowly at first, then firmly: most of the torque comes in the lower half of the bite zone
+      const cap = Math.pow(eng, 2.2) * SPEC.clutchMax;
       const Tc = cap > 0 ? clamp((this.omega - ww) * 40, -cap, cap) : 0;
       this.omega = Math.max(0, this.omega + (Te - Tc) / SPEC.Ie * h);
 

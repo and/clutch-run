@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { World, LANE, ROAD_HALF, HALF } from './world.js';
-import { Drivetrain, SPEC, TOP_GEAR } from './drivetrain.js';
+import { Drivetrain, SPEC, TOP_GEAR, BITE_TOP, BITE_BOTTOM } from './drivetrain.js';
 import { Sound } from './audio.js';
 import { Hud, fmtTime } from './hud.js';
 import { makeCar, poseCar } from './cars.js';
@@ -79,7 +79,7 @@ let K = LAYOUTS[layoutName];
 const keys = new Set();
 const state = {
   started: false, paused: false, cam: 0, horn: false,
-  throttle: 0, brake: 0, handbrake: 0,
+  throttle: 0, brake: 0, handbrake: 0, clutchHold: 0,
   crashes: 0, stalls: 0, grinds: 0, crashCool: 0, shake: 0,
   lap: 1, lapStart: null, lapTime: 0, best: null, nextCp: 0,
   greenT: 0, driveT: 0, lastToast: {},
@@ -216,6 +216,10 @@ function coach(n, grade) {
   if (!dt.on) return { hint: { text: 'Stalled. Press I to restart (select N first)', tone: 'bad' } };
   if (n && n.dist > ROAD_HALF + 1 && Math.abs(sp) > 1) return { hint: { text: 'Off the road. Press T to get back on it', tone: 'warn' } };
   if (n && n.lat < -0.6 && sp > 3 && n.dist < ROAD_HALF + 1) return { hint: { text: 'Keep left: you are in the oncoming lane', tone: 'bad' } };
+  if (!dt.autoClutch && dt.gear !== 0 && Math.abs(sp) < 4 && dt.pedal < BITE_TOP && dt.pedal > BITE_BOTTOM) {
+    if (rpm < 1000) return { hint: { text: `Revs dropping: more accelerator, or clutch back in (${K.clutchName})`, tone: 'bad' } };
+    return { hint: { text: `Clutch at the bite point: tap ${K.clutchName} to hold it here`, tone: 'good' } };
+  }
   if (dt.gear === 0 && state.throttle > 0.3 && Math.abs(sp) < 1) return { hint: { text: 'You are in neutral. Press 1 for first gear', tone: 'warn' }, suggest: { gear: 1, dir: 1 } };
   if (dt.gear > 0) {
     if (rpm > 5600 && dt.gear < TOP_GEAR) { const g = bestGear(1); return { hint: { text: `High revs: change up to ${ORD[g]}`, tone: 'bad' }, suggest: { gear: g, dir: 1 } }; }
@@ -237,7 +241,14 @@ function update(h) {
   state.throttle = ramp(state.throttle, down(...K.throttle), 3.5, 6);
   state.brake = ramp(state.brake, down(...K.brake), 4, 8);
   state.handbrake = down(...K.handbrake) ? 1 : 0;
-  dt.pedal = clamp(dt.pedal + (down(...K.clutch) ? 8 : -1.6) * h, 0, 1);
+  // Clutch pedal. Holding the key pushes it down (gently for the first moment, so a tap nudges it).
+  // Letting go lets it rise by itself: quickly to the bite point, slowly through it, quickly after,
+  // the way a driver's foot does. Tap while it rises to hover at the bite point.
+  const clutchDown = down(...K.clutch);
+  state.clutchHold = clutchDown ? state.clutchHold + h : 0;
+  if (clutchDown) dt.pedal += (state.clutchHold < 0.2 ? 1.5 : 6) * h;
+  else dt.pedal -= (dt.pedal <= BITE_TOP + 0.02 && dt.pedal >= BITE_BOTTOM ? 0.45 : 3) * h;
+  dt.pedal = clamp(dt.pedal, 0, 1);
   state.horn = down('KeyH');
 
   const sp = Math.abs(dt.v);
@@ -331,7 +342,7 @@ function update(h) {
     rpm: dt.rpm, kmh: sp * 3.6, gearLabel: gearName(dt.gear), on: dt.on || dt.crankT > 0,
     suggest: c.suggest, hint: c.hint,
     clutch: dt.autoClutch ? (dt.gear === 0 ? 0 : 1 - dt.eng) : dt.pedal, brake: state.brake, throttle: state.throttle,
-    auto: dt.autoClutch, clutchKey: K.clutchName, section, lap: state.lap, lapTime: state.lapTime, best: state.best,
+    auto: dt.autoClutch, clutchKey: K.clutchName, bite: [BITE_BOTTOM, BITE_TOP], section, lap: state.lap, lapTime: state.lapTime, best: state.best,
     crashes: state.crashes, stalls: state.stalls, grinds: state.grinds,
     green: state.driveT > 1 ? Math.round(100 * state.greenT / state.driveT) : 100,
     traffic, x: player.x, z: player.z, yaw: player.yaw,
