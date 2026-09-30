@@ -1,13 +1,13 @@
 // All sound is synthesised with the Web Audio API: no audio files to load.
 export class Sound {
-  constructor() { this.ctx = null; this.muted = false; }
+  constructor() { this.ctx = null; this.muted = false; this.volume = 1; }
 
   init() {
     if (this.ctx) { this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const ctx = this.ctx = new AC();
-    this.master = ctx.createGain(); this.master.gain.value = 0.7;
+    this.master = ctx.createGain(); this.master.gain.value = this.muted ? 0 : 0.7 * this.volume;
     const comp = ctx.createDynamicsCompressor();
     this.master.connect(comp); comp.connect(ctx.destination);
 
@@ -50,7 +50,10 @@ export class Sound {
     hf.connect(this.hornG); this.hornG.connect(this.master);
   }
 
-  setMuted(m) { this.muted = m; if (this.master) this.master.gain.setTargetAtTime(m ? 0 : 0.7, this.ctx.currentTime, 0.05); }
+  setMuted(m) { this.muted = m; this.applyGain(); }
+  // volume 0..1 scales everything; mute stays a separate switch so M brings back the chosen level
+  setVolume(v) { this.volume = Math.max(0, Math.min(1, v)); this.applyGain(); }
+  applyGain() { if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.7 * this.volume, this.ctx.currentTime, 0.05); }
 
   // s: {rpm, throttle, on, cranking, speed (m/s), surf, squeal 0..1, horn}
   update(s) {

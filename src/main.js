@@ -41,7 +41,7 @@ const dt = new Drivetrain();
 const sound = new Sound();
 const hud = new Hud(document.getElementById('hud'), world);
 
-const player = { x: 0, z: 0, y: 0, yaw: 0, steer: 0, steerVel: 0, head: 0, pitch: 0, roll: 0, car: addInterior(makeCar(0xe0730f)) };
+const player = { x: 0, z: 0, y: 0, yaw: 0, steer: 0, steerVel: 0, head: 0, grip: 1, pitch: 0, roll: 0, car: addInterior(makeCar(0xe0730f)) };
 scene.add(player.car.group);
 
 function spawnAt(d) {
@@ -82,7 +82,7 @@ const state = {
   throttle: 0, brake: 0, handbrake: 0, clutchHold: 0,
   crashes: 0, stalls: 0, grinds: 0, crashCool: 0, shake: 0,
   lap: 1, lapStart: null, lapTime: 0, best: null, nextCp: 0,
-  greenT: 0, driveT: 0, lastToast: {},
+  greenT: 0, driveT: 0, lastToast: {}, keyOff: false,
 };
 
 function toastOnce(key, text, tone, gap = 4) {
@@ -120,7 +120,8 @@ window.addEventListener('keydown', e => {
   else if (c === 'KeyE') requestGear(dt.gear < 0 ? 0 : Math.min(TOP_GEAR, dt.gear + 1));
   else if (c === 'KeyQ') requestGear(dt.gear <= 0 ? dt.gear : dt.gear - 1);
   else if (c === 'KeyI') {
-    if (dt.on) return;
+    // The ignition key: switches a running engine off, or starts a stopped one
+    if (dt.on) { dt.on = false; state.keyOff = true; hud.toast('Engine off'); return; }
     if (dt.gear !== 0 && (dt.autoClutch ? false : dt.pedal < 0.8)) { hud.toast(`Clutch in (${K.clutchName}) or select neutral (N) to start`, 'warn'); return; }
     if (dt.gear !== 0 && dt.autoClutch) dt.setGear(0);
     if (dt.crank()) hud.toast('Starting…');
@@ -129,6 +130,7 @@ window.addEventListener('keydown', e => {
   else if (c === 'KeyV') { state.cam = (state.cam + 1) % CAMS.length; hud.toast(CAMS[state.cam]); }
   else if (c === 'KeyT') { const n = world.nearest(player.x, player.z, 6); spawnAt(n ? n.i * world.ds : 0); dt.setGear(0); hud.toast('Back on the road'); }
   else if (c === 'KeyM') { sound.setMuted(!sound.muted); hud.toast(sound.muted ? 'Sound off' : 'Sound on'); }
+  else if (c === 'Minus' || c === 'Equal') { setVolume(Math.round(sound.volume * 10 + (c === 'Equal' ? 1 : -1)) / 10); hud.toast(`Volume ${Math.round(sound.volume * 100)}%`); }
 });
 window.addEventListener('keyup', e => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
@@ -213,7 +215,7 @@ function bestGear(dir) {
 function coach(n, grade) {
   const rpm = dt.rpm, sp = dt.v;
   if (dt.crankT > 0) return { hint: { text: 'Starting the engine…', tone: 'warn' } };
-  if (!dt.on) return { hint: { text: 'Stalled. Press I to restart (select N first)', tone: 'bad' } };
+  if (!dt.on) return { hint: state.keyOff ? { text: 'Engine off. Press I to start it (select N first)', tone: 'warn' } : { text: 'Stalled. Press I to restart (select N first)', tone: 'bad' } };
   if (n && n.dist > ROAD_HALF + 1 && Math.abs(sp) > 1) return { hint: { text: 'Off the road. Press T to get back on it', tone: 'warn' } };
   if (n && n.lat < -0.6 && sp > 3 && n.dist < ROAD_HALF + 1) return { hint: { text: 'Keep left: you are in the oncoming lane', tone: 'bad' } };
   if (!dt.autoClutch && dt.gear !== 0 && Math.abs(sp) < 4 && dt.pedal < BITE_TOP && dt.pedal > BITE_BOTTOM) {
@@ -255,7 +257,9 @@ function update(h) {
 
   const sp = Math.abs(dt.v);
   const steerIn = (down(...K.left) ? 1 : 0) - (down(...K.right) ? 1 : 0);
-  const maxSteer = 0.55 / (1 + sp * 0.07);
+  // Full lock only at parking speeds; faster, the lock is what keeps cornering under ~0.7 g,
+  // as real tyres would. Otherwise a tap on A or D whips the car round at well over 1 g.
+  const maxSteer = Math.min(0.55, Math.atan(SPEC.wheelbase * 7 / Math.max(sp * sp, 1e-3)));
   const tgt = steerIn * maxSteer;
   // The wheel turns like a driver's hands move it: a critically damped spring eases in and out
   // instead of jumping straight to a fixed turning rate, so the car never snaps into a turn.
@@ -272,12 +276,14 @@ function update(h) {
   const hR = world.surfaceAt(player.x - lx * 0.8, player.z - lz * 0.8).y;
   const sinG = clamp((hF - hB) / 2.5, -0.5, 0.5);
   const crr = here.surf === 'asphalt' ? 0.015 : here.surf === 'gravel' ? 0.035 : 0.1;
-  const grip = here.surf === 'asphalt' ? 1 : here.surf === 'gravel' ? 0.82 : 0.7;
+  // grip changes over a few frames as the tyres cross onto another surface, not in one step
+  player.grip += ((here.surf === 'asphalt' ? 1 : here.surf === 'gravel' ? 0.82 : 0.7) - player.grip) * (1 - Math.exp(-h * 8));
+  const grip = player.grip;
 
   dt.step(h, { throttle: state.throttle, brake: state.brake, handbrake: state.handbrake }, { sinGrade: sinG, crr });
   for (const ev of dt.events) {
     if (ev === 'stall') { state.stalls++; sound.clunk(); hud.toast('Stalled!', 'bad'); }
-    if (ev === 'started') hud.toast('Engine running', 'good');
+    if (ev === 'started') { state.keyOff = false; hud.toast('Engine running', 'good'); }
   }
   dt.events.length = 0;
 
@@ -397,6 +403,21 @@ function setLayout(name) {
 }
 document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.layout)));
 setLayout(layoutName);
+// Volume: sliders on the start and pause screens, - and = while driving, remembered in the browser
+function setVolume(v) {
+  sound.setVolume(v);
+  if (sound.muted && sound.volume > 0) sound.setMuted(false);
+  const pct = Math.round(sound.volume * 100);
+  document.querySelectorAll('[data-volume]').forEach(x => { x.value = pct; });
+  document.querySelectorAll('[data-volume-label]').forEach(x => { x.textContent = `${pct}%`; });
+  try { localStorage.setItem('clutchrun-volume', String(sound.volume)); } catch (e) {}
+}
+document.querySelectorAll('[data-volume]').forEach(s => s.addEventListener('input', () => setVolume(s.value / 100)));
+{
+  let v = 1;
+  try { const saved = parseFloat(localStorage.getItem('clutchrun-volume')); if (saved >= 0 && saved <= 1) v = saved; } catch (e) {}
+  setVolume(v);
+}
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('[data-mode]').forEach(x => x.setAttribute('aria-pressed', x === b));
   dt.autoClutch = b.dataset.mode === 'auto';

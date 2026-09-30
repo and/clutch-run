@@ -16,9 +16,10 @@ Pick a layout on the start screen. **Standard** is below. **Pedals on arrows** p
 | E / Q | Change up / change down |
 | Shift | Clutch pedal (full manual mode). Let go and it rises slowly through the bite point; tap to hold it there |
 | Space | Handbrake |
-| I | Restart the engine after a stall |
+| I | Switch the engine on or off (restarts it after a stall) |
 | H / V / T | Horn / view (behind the car, driver's seat, bonnet) / back to the road |
 | C / M / P | Clutch mode / sound / pause |
+| − / = | Volume down / up (also a slider on the start and pause screens) |
 
 ## How it works
 
