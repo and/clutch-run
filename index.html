@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clutch Run</title>
+<meta name="description" content="A 3D driving game in your browser: drive a manual hatchback over hills, gravel and village roads, change gears yourself, and keep the revs in the green.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#0c1116; --panel:rgba(12,17,22,.9); --fg:#e8edf2; --muted:#93a0ad; --line:#2b3744;
+  --accent:#f28c2b; --good:#4db883; --bad:#ef5d50;
+  --disp:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--mono)}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#hud{pointer-events:none}
+[hidden]{display:none!important}
+.overlay{position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:rgba(6,9,12,.55);backdrop-filter:blur(3px)}
+.card{width:min(620px,100%);max-height:calc(100% - 16px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px}
+h1{font:700 clamp(44px,9vw,72px)/.95 var(--disp);text-transform:uppercase;margin:0 0 8px;letter-spacing:.01em}
+h1 span{color:var(--accent)}
+.dek{font-size:14px;line-height:1.6;color:var(--muted);margin:0 0 20px}
+h2{font:600 15px var(--disp);text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin:22px 0 10px}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modes button{text-align:left;padding:14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer;display:grid;gap:4px;font:inherit}
+.modes button b{font:700 22px var(--disp)}
+.modes button span{font-size:12px;color:var(--muted);line-height:1.5}
+.modes button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;margin:0}
+.keys dt{white-space:nowrap}
+.keys dd{margin:0;color:var(--muted)}
+kbd{font:500 12px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:#161f28;color:var(--fg)}
+.go{margin-top:24px;width:100%;padding:16px;border:0;border-radius:10px;background:var(--accent);color:#1a0e02;font:700 22px var(--disp);text-transform:uppercase;letter-spacing:.1em;cursor:pointer}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.note{font-size:12px;color:var(--muted);margin-top:14px;line-height:1.5}
+.toast-card{position:fixed;left:50%;top:22%;transform:translateX(-50%);width:min(520px,calc(100% - 32px));background:var(--panel);border:1px solid var(--good);border-radius:14px;padding:18px 22px;text-align:center}
+.toast-card b{display:block;font:700 30px var(--disp);text-transform:uppercase;color:var(--good)}
+.toast-card p{margin:6px 0 0;font-size:14px;line-height:1.5}
+@media (max-width:560px){.modes{grid-template-columns:1fr}.card{padding:20px}}
+</style>
+<script type="importmap">{ "imports": { "three": "./lib/three.module.min.js" } }</script>
+</head>
+<body>
+<canvas id="scene" tabindex="0" aria-label="Driving scene"></canvas>
+<canvas id="hud" aria-hidden="true"></canvas>
+
+<div class="overlay" id="menu">
+  <div class="card">
+    <h1>Clutch <span>Run</span></h1>
+    <p class="dek">Drive a manual hatchback round a hill loop: village streets, a steep climb, a gravel stretch and a long descent. You change the gears. Keep the revs in the green, keep left, and don't hit anyone.</p>
+    <h2>Clutch</h2>
+    <div class="modes">
+      <button type="button" data-mode="auto" aria-pressed="true"><b>Auto clutch</b><span>You pick the gears; the clutch looks after itself. Best to start with.</span></button>
+      <button type="button" data-mode="manual" aria-pressed="false"><b>Full manual</b><span>Hold Shift for the clutch. Change gear without it and it grinds. Let it out too fast and you stall.</span></button>
+    </div>
+    <h2>Controls</h2>
+    <dl class="keys">
+      <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Accelerate · brake</dd>
+      <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Steer (arrow keys work too)</dd>
+      <dt><kbd>1</kbd>–<kbd>5</kbd> <kbd>R</kbd> <kbd>N</kbd></dt><dd>Select a gear, reverse or neutral</dd>
+      <dt><kbd>E</kbd> <kbd>Q</kbd></dt><dd>Change up · change down</dd>
+      <dt><kbd>Shift</kbd></dt><dd>Clutch pedal (full manual)</dd>
+      <dt><kbd>Space</kbd></dt><dd>Handbrake</dd>
+      <dt><kbd>I</kbd></dt><dd>Restart the engine after a stall</dd>
+      <dt><kbd>H</kbd> <kbd>V</kbd> <kbd>T</kbd></dt><dd>Horn · camera · back to the road</dd>
+      <dt><kbd>C</kbd> <kbd>M</kbd> <kbd>P</kbd></dt><dd>Switch clutch mode · sound · pause</dd>
+    </dl>
+    <button type="button" class="go" id="go">Start driving</button>
+    <p class="note">Needs a keyboard. Sound starts when you press Start.</p>
+  </div>
+</div>
+
+<div class="overlay" id="pause" hidden>
+  <div class="card">
+    <h1>Paused</h1>
+    <p class="dek">Press <kbd>P</kbd> or <kbd>Esc</kbd> to carry on.</p>
+    <button type="button" class="go" id="resume">Resume</button>
+  </div>
+</div>
+
+<div class="toast-card" id="lap" hidden><b>Lap complete</b><p id="lap-text"></p></div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
