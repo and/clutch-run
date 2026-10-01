@@ -8,6 +8,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script>
+// Phones are spotted before anything is drawn, so the keyboard instructions never show on them and the
+// rotate prompt appears at once, not after the 3D world has loaded. ?touch forces this on a computer.
+try { if (matchMedia('(pointer: coarse)').matches || matchMedia('(hover: none)').matches || /[?&]touch\b/.test(location.search)) document.documentElement.classList.add('touch'); } catch (e) {}
+</script>
 <style>
 :root{
   --bg:#0c1116; --panel:rgba(12,17,22,.9); --fg:#e8edf2; --muted:#93a0ad; --line:#2b3744;
@@ -53,8 +58,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .hud-vol.muted .waves{display:none}
 .hud-vol.muted input,.hud-vol.muted span{opacity:.45}
 /* phones: touch controls, mirrored for left-hand drive */
-body:not(.touch) .touch-only, body.touch .desk, body.touch .hud-vol{display:none!important}
-body.touch #scene{touch-action:none}
+html:not(.touch) .touch-only, .touch .desk, .touch .hud-vol{display:none!important}
+.touch #scene{touch-action:none}
 #touch{position:fixed;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 #touch>*{position:absolute;bottom:max(14px,env(safe-area-inset-bottom));pointer-events:auto;touch-action:none}
 .t-gears{left:max(14px,env(safe-area-inset-left));display:grid;gap:8px}
@@ -71,7 +76,7 @@ body.lhd .t-pedals{right:auto;left:max(14px,env(safe-area-inset-left))}
 .t-pedal.gas i{background:var(--good)}
 .t-pedal b{position:absolute;inset:auto 0 8px;text-align:center;font:600 13px var(--disp);text-transform:uppercase;letter-spacing:.06em}
 .rotate{display:none}
-@media (orientation:portrait){body.touch .rotate{position:fixed;inset:0;z-index:5;display:grid;place-content:center;gap:6px;padding:24px;text-align:center;background:var(--bg)}
+@media (orientation:portrait){.touch .rotate{position:fixed;inset:0;z-index:5;display:grid;place-content:center;gap:6px;padding:24px;text-align:center;background:var(--bg)}
   .rotate b{font:700 30px var(--disp);text-transform:uppercase}.rotate p{margin:0;color:var(--muted);font-size:14px}}
 .toast-card{position:fixed;left:50%;top:22%;transform:translateX(-50%);width:min(520px,calc(100% - 32px));background:var(--panel);border:1px solid var(--good);border-radius:14px;padding:18px 22px;text-align:center}
 .toast-card b{display:block;font:700 30px var(--disp);text-transform:uppercase;color:var(--good)}
@@ -143,7 +148,7 @@ body.lhd .t-pedals{right:auto;left:max(14px,env(safe-area-inset-left))}
 <div class="overlay" id="pause" hidden>
   <div class="card">
     <h1>Paused</h1>
-    <p class="dek">Press <kbd>P</kbd> or <kbd>Esc</kbd> to carry on.</p>
+    <p class="dek desk">Press <kbd>P</kbd> or <kbd>Esc</kbd> to carry on.</p>
     <label class="vol">Volume <input type="range" min="0" max="100" step="5" value="100" data-volume aria-label="Volume"> <span data-volume-label>100%</span></label>
     <button type="button" class="go" id="resume">Resume</button>
   </div>

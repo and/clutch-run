@@ -6,9 +6,8 @@ import { Hud, fmtTime } from './hud.js';
 import { makeCar, poseCar, addInterior, DRIVER } from './cars.js';
 import { TouchControls } from './touch.js';
 
-// Phones and tablets get on-screen pedals, gear buttons and tilt steering. ?touch forces them on a desktop.
-const TOUCH = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('touch');
-if (TOUCH) document.body.classList.add('touch');
+// Phones and tablets get on-screen pedals, gear buttons and tilt steering.
+const TOUCH = document.documentElement.classList.contains('touch'); // set by the first script in index.html
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ORD = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th' };
