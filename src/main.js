@@ -10,7 +10,7 @@ import { TouchControls } from './touch.js';
 const TOUCH = document.documentElement.classList.contains('touch'); // set by the first script in index.html
 
 // A phone held upright stacks like a car: the road view on top, then the dashboard, then the controls.
-const DASH_PORTRAIT = 350; // px under the road view for the dials and the thumb controls
+const DASH_PORTRAIT = 360; // px under the road view for the dials and the thumb controls
 function screenLayout() {
   const w = window.innerWidth, h = window.innerHeight, portrait = TOUCH && h > w;
   return { w, h, portrait, sceneH: portrait ? Math.round(Math.max(h * 0.45, h - DASH_PORTRAIT)) : h };
@@ -96,7 +96,7 @@ const state = {
   started: false, paused: false, cam: 0, horn: false,
   throttle: 0, brake: 0, handbrake: 0, clutchHold: 0,
   crashes: 0, stalls: 0, grinds: 0, crashCool: 0, shake: 0,
-  lap: 1, lapStart: null, lapTime: 0, best: null, nextCp: 0,
+  lap: 1, lapRunning: false, lapTime: 0, best: null, nextCp: 0,
   greenT: 0, driveT: 0, lastToast: {}, keyOff: false,
 };
 
@@ -240,7 +240,7 @@ function coach(n, grade) {
     if (rpm < 1000) return { hint: { text: `Revs dropping: more accelerator, or clutch back in (${K.clutchName})`, tone: 'bad' } };
     return { hint: { text: `Clutch at the bite point: tap ${K.clutchName} to hold it here`, tone: 'good' } };
   }
-  if (dt.gear === 0 && state.throttle > 0.3 && Math.abs(sp) < 1) return { hint: { text: tk('You are in neutral. Press 1 for first gear', 'You are in neutral. Tap ▲ for first gear'), tone: 'warn' }, suggest: { gear: 1, dir: 1 } };
+  if (dt.gear === 0 && state.throttle > 0.3 && Math.abs(sp) < 1) return { hint: { text: tk('You are in neutral. Press 1 for first gear', 'You are in neutral. Push the lever up into 1st'), tone: 'warn' }, suggest: { gear: 1, dir: 1 } };
   if (dt.gear > 0) {
     if (rpm > 5600 && dt.gear < TOP_GEAR) { const g = bestGear(1); return { hint: { text: `High revs: change up to ${ORD[g]}`, tone: 'bad' }, suggest: { gear: g, dir: 1 } }; }
     if (grade > 0.06 && dt.gear >= 3 && rpm < 2300 && sp > 2) { const g = Math.min(2, bestGear(-1)); return { hint: { text: `Steep climb: change down to ${ORD[g]}`, tone: 'warn' }, suggest: { gear: g, dir: -1 } }; }
@@ -328,14 +328,15 @@ function update(h) {
   updateTraffic(h, pd, pLane);
 
   // laps
-  if (state.lapStart === null && sp > 0.5) state.lapStart = performance.now() / 1000;
-  if (state.lapStart !== null) state.lapTime = performance.now() / 1000 - state.lapStart;
+  // The lap clock counts game time, so a pause or a hidden tab doesn't add to the lap
+  if (!state.lapRunning && sp > 0.5) { state.lapRunning = true; state.lapTime = 0; }
+  if (state.lapRunning) state.lapTime += h;
   if (n) {
     const cps = [0.25, 0.5, 0.75].map(f => f * L);
     if (state.nextCp < 3 && Math.abs(wrapDiff(pd, cps[state.nextCp])) < 20) state.nextCp++;
     else if (state.nextCp === 3 && Math.abs(wrapDiff(pd, 0)) < 12) {
       const t = state.lapTime; state.best = state.best ? Math.min(state.best, t) : t;
-      showLap(t); state.lap++; state.nextCp = 0; state.lapStart = performance.now() / 1000;
+      showLap(t); state.lap++; state.nextCp = 0; state.lapTime = 0;
     }
   }
 
@@ -384,6 +385,7 @@ function update(h) {
   const c = coach(n, sinG);
   const section = !n || n.dist > ROAD_HALF + 1 ? 'Off road · grass'
     : `${here.surf === 'gravel' ? 'Gravel road' : 'Tarmac'}${sinG > 0.035 ? ` · climbing ${Math.round(sinG * 100)}%` : sinG < -0.035 ? ` · downhill ${Math.round(-sinG * 100)}%` : ''}`;
+  if (touch) touch.syncGear(dt.gear); // the lever's knob shows the gear the car is really in
   hud.draw({
     rpm: dt.rpm, kmh: sp * 3.6, gearLabel: gearName(dt.gear), on: dt.on || dt.crankT > 0,
     suggest: c.suggest, hint: c.hint,
@@ -429,8 +431,9 @@ let touch = null;
 if (TOUCH) {
   touch = new TouchControls($('touch'), canvas);
   const press = code => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); window.dispatchEvent(new KeyboardEvent('keyup', { code })); };
-  const acts = { up: 'KeyE', down: 'KeyQ', n: 'KeyN', r: 'KeyR', engine: 'KeyI', view: 'KeyV', reset: 'KeyT', pause: 'KeyP', mute: 'KeyM' };
+  const acts = { engine: 'KeyI', view: 'KeyV', reset: 'KeyT', pause: 'KeyP', mute: 'KeyM' };
   for (const [act, code] of Object.entries(acts)) touch.on(act, () => press(code));
+  touch.on('gear', g => requestGear(g)); // the H-pattern lever
   const setSide = side => {
     document.body.classList.toggle('lhd', side === 'lhd');
     document.querySelectorAll('[data-side]').forEach(x => x.setAttribute('aria-pressed', x.dataset.side === side));
@@ -490,7 +493,7 @@ $('go').addEventListener('click', () => {
     $('touch').hidden = false;
   }
   sound.init(); state.started = true; $('menu').hidden = true; $('hud-vol').hidden = false;
-  hud.toast(touch ? 'Tap ▲ for first gear, then press Accel' : `Press 1 for first gear, then ${K.goName} to go`, 'fg');
+  hud.toast(touch ? 'Push the lever up into 1st, then press Accel' : `Press 1 for first gear, then ${K.goName} to go`, 'fg');
   canvas.focus();
 });
 $('resume').addEventListener('click', () => setPaused(false));
@@ -501,6 +504,8 @@ function fitScreen() {
   hud.resize(lay);
 }
 window.addEventListener('resize', fitScreen);
+// iPhones can still report the old size while turning; fit again once the turn has settled
+window.addEventListener('orientationchange', () => setTimeout(fitScreen, 350));
 fitScreen();
 
 spawnAt(6);

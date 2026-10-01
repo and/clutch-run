@@ -96,7 +96,7 @@ export class Hud {
 
     // Instrument cluster
     // Upright phones: smaller dials, sitting in the strip above the thumb controls (which take the bottom 222 px)
-    const R = P ? clamp(w * 0.13, 40, 58) : clamp(Math.min(w, h) * 0.11, 56, 92), gap = R * 0.3, gw = R * 1.5;
+    const R = P ? clamp(w * 0.13, 40, 50) : clamp(Math.min(w, h) * 0.11, w < 760 ? 50 : 56, 92), gap = R * 0.3, gw = R * 1.5; // small phones sideways: a little smaller, clear of the lever
     const cx = w / 2, cy = P ? Math.max(top + R + 16, h - 222 - R - 10) : h - R - 22;
     const pw = 4 * R + gw + gap * 4, ph = 2 * R + 20;
     this.round(cx - pw / 2, cy - R - 10, pw, ph, 16, C.panel);

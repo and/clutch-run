@@ -11,6 +11,7 @@ export class TouchControls {
     this.tilt = 0; this.tiltAt = 0; this.sign = 0;
     this.drag = null; this.handlers = {};
     root.querySelectorAll('[data-pedal]').forEach(el => this.pedal(el));
+    root.querySelectorAll('[data-gate]').forEach(el => this.gate(el));
     root.querySelectorAll('[data-act]').forEach(el => el.addEventListener('pointerdown', e => {
       e.preventDefault(); const f = this.handlers[el.dataset.act]; if (f) f();
     }));
@@ -35,6 +36,57 @@ export class TouchControls {
     el.addEventListener('pointerdown', e => { e.preventDefault(); id = e.pointerId; capture(el, e); set(e); });
     el.addEventListener('pointermove', e => { if (e.pointerId === id) set(e); });
     el.addEventListener('pointerup', release); el.addEventListener('pointercancel', release);
+  }
+
+  // H-pattern gear lever. The knob only moves along the gate, like a real one:
+  //   1   3   5
+  //   |---N---|
+  //   2   4   R
+  // A gear engages once the knob is most of the way into its slot; back on the middle rail is neutral.
+  // The game may refuse a gear (too fast for 1st, reverse while moving); on release the knob then
+  // springs back to neutral, and between drags it follows whatever gear the car is really in.
+  gate(el) {
+    const knob = el.querySelector('.knob'), label = knob.querySelector('b');
+    const COLS = [26 / 132, 0.5, 106 / 132], TOP = 18 / 132, MID = 0.5, BOT = 114 / 132;
+    const SLOTS = [[1, 2], [3, 4], [5, -1]]; // [up, down] per column
+    const k = this.lever = { x: 0.5, y: MID, id: null, want: 0, gear: null };
+    const nearestCol = x => COLS.reduce((b, c, i) => Math.abs(c - x) < Math.abs(COLS[b] - x) ? i : b, 0);
+    const place = () => {
+      knob.style.left = `${k.x * 100}%`; knob.style.top = `${k.y * 100}%`;
+      const g = k.id !== null ? k.want : k.gear; // while dragging, the gear being asked for
+      label.textContent = g === -1 ? 'R' : g ? String(g) : 'N';
+    };
+    const move = e => {
+      const r = el.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+      if (Math.abs(k.y - MID) < 0.03) { // on the neutral rail: slide across, or drop into a slot at a column
+        const c = nearestCol(k.x);
+        if (Math.abs(k.x - COLS[c]) < 0.1 && Math.abs(fy - MID) > 0.08) { k.x = COLS[c]; k.y = clamp(fy, TOP, BOT); }
+        else { k.x = clamp(fx, COLS[0], COLS[2]); k.y = MID; }
+      } else { // in a slot: only up and down, back onto the rail near the middle
+        k.y = clamp(fy, TOP, BOT); if (Math.abs(k.y - MID) < 0.03) k.y = MID;
+      }
+      const c = nearestCol(k.x), depth = k.y < MID ? (MID - k.y) / (MID - TOP) : (k.y - MID) / (BOT - MID);
+      const want = depth > 0.7 ? SLOTS[c][k.y < MID ? 0 : 1] : depth < 0.3 ? 0 : k.want;
+      if (want !== k.want) { k.want = want; const f = this.handlers.gear; if (f) f(want); }
+      place();
+    };
+    el.addEventListener('pointerdown', e => { e.preventDefault(); k.id = e.pointerId; capture(el, e); el.classList.add('drag'); move(e); });
+    el.addEventListener('pointermove', e => { if (e.pointerId === k.id) move(e); });
+    const end = e => { if (e.pointerId !== k.id) return; k.id = null; el.classList.remove('drag'); k.gear = null; };
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+    this.leverPlace = place; this.leverCols = COLS; this.leverSlots = SLOTS; this.leverEnds = [TOP, MID, BOT];
+    place();
+  }
+
+  // Called every frame with the car's real gear: between drags the knob sits where that gear is.
+  syncGear(g) {
+    const k = this.lever;
+    if (!k || k.id !== null || k.gear === g) return;
+    const [TOP, MID, BOT] = this.leverEnds;
+    k.gear = g; k.want = g;
+    if (g === 0) k.y = MID; // neutral: stay at this column on the rail
+    else this.leverSlots.forEach((s, c) => { const i = s.indexOf(g); if (i >= 0) { k.x = this.leverCols[c]; k.y = i ? BOT : TOP; } });
+    this.leverPlace();
   }
 
   // Must be called from a tap: iPhones only hand out motion data after asking the player.
