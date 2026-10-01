@@ -45,6 +45,7 @@ function inRange(i, a, b) { return a <= b ? i >= a && i < b : i >= a || i < b; }
 export class World {
   constructor(scene) {
     this.scene = scene;
+    this.loop = true; this.view = 950; // a closed loop, all built at once
     this.colliders = [];
     this.buildRoute();
     this.buildTerrain();
@@ -103,7 +104,7 @@ export class World {
     const f = Math.min(1, Math.abs(along) / this.ds);
     const y = s.y + (this.S[j].y - s.y) * f;
     const dist = Math.abs(along) <= this.ds ? Math.abs(lat) : Math.sqrt(bd);
-    return { i: best, s, lat, along, y, dist };
+    return { i: best, s, lat, along, y, dist, d: best * this.ds + along }; // d: distance along the loop
   }
 
   // Point on the road at distance d along the loop, offset sideways by lat.
@@ -278,19 +279,7 @@ export class World {
   sign(i, lines) {
     const s = this.S[i], off = ROAD_HALF + 2.2;
     const x = s.x + s.lx * off, z = s.z + s.lz * off, y = this.groundHeight(x, z);
-    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256;
-    const g = cv.getContext('2d');
-    g.fillStyle = '#f4f1e6'; g.fillRect(0, 0, 512, 256);
-    g.strokeStyle = '#1b2128'; g.lineWidth = 16; g.strokeRect(8, 8, 496, 240);
-    g.fillStyle = '#1b2128'; g.textAlign = 'center';
-    g.font = 'bold 76px "Barlow Condensed", Arial Narrow, sans-serif'; g.fillText(lines[0], 256, 118);
-    g.font = '46px "Barlow Condensed", Arial Narrow, sans-serif'; g.fillText(lines[1], 256, 190);
-    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-    const board = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.6), new THREE.MeshStandardMaterial({ map: t, roughness: 0.8, side: THREE.DoubleSide }));
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 3.2, 6), new THREE.MeshStandardMaterial({ color: 0x777b80 }));
-    const grp = new THREE.Group();
-    post.position.y = 1.6; board.position.y = 2.8; board.position.z = 0.08;
-    grp.add(post, board);
+    const grp = makeSign(lines);
     // face oncoming drivers (who travel along +tangent)
     grp.position.set(x, y, z); grp.rotation.y = Math.atan2(-s.tx, -s.tz);
     this.scene.add(grp);
@@ -298,7 +287,25 @@ export class World {
   }
 }
 
-function roadTexture(gravel) {
+// A roadside sign with two lines of text, standing on its post at the origin
+export function makeSign(lines) {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#f4f1e6'; g.fillRect(0, 0, 512, 256);
+  g.strokeStyle = '#1b2128'; g.lineWidth = 16; g.strokeRect(8, 8, 496, 240);
+  g.fillStyle = '#1b2128'; g.textAlign = 'center';
+  g.font = 'bold 76px "Barlow Condensed", Arial Narrow, sans-serif'; g.fillText(lines[0], 256, 118);
+  g.font = '46px "Barlow Condensed", Arial Narrow, sans-serif'; g.fillText(lines[1], 256, 190);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.6), new THREE.MeshStandardMaterial({ map: t, roughness: 0.8, side: THREE.DoubleSide }));
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 3.2, 6), new THREE.MeshStandardMaterial({ color: 0x777b80 }));
+  const grp = new THREE.Group();
+  post.position.y = 1.6; board.position.y = 2.8; board.position.z = 0.08;
+  grp.add(post, board);
+  return grp;
+}
+
+export function roadTexture(gravel) {
   const cv = document.createElement('canvas'); cv.width = 256; cv.height = 512;
   const g = cv.getContext('2d'), r = mulberry(gravel ? 3 : 5);
   g.fillStyle = gravel ? '#9b8566' : '#4b4e53'; g.fillRect(0, 0, 256, 512);

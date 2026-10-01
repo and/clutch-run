@@ -9,10 +9,13 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export class Hud {
   constructor(canvas, world) {
-    this.cv = canvas; this.g = canvas.getContext('2d'); this.world = world;
+    this.cv = canvas; this.g = canvas.getContext('2d');
     this.toasts = []; this.flash = 0; this.time = 0;
-    this.resize(); this.buildMap();
+    this.resize(); this.setWorld(world);
   }
+
+  // The loop's minimap is drawn once; the endless road's is drawn live around the car
+  setWorld(world) { this.world = world; if (world.loop) this.buildMap(); else this.map = { size: 150 }; }
 
   // lay (from main.js): a phone held upright has the road view on top, height sceneH, and the dashboard under it
   resize(lay) {
@@ -133,7 +136,7 @@ export class Hud {
     // Top-left: where you are and how you're doing
     const lines = [
       [s.section, C.fg, `600 20px ${DISP}`],
-      [`Lap ${s.lap}  ·  ${fmtTime(s.lapTime)}${s.best ? '  ·  best ' + fmtTime(s.best) : ''}`, C.fg, `14px ${MONO}`],
+      [s.endless ? `${(s.odo / 1000).toFixed(2)} km  ·  ${fmtTime(s.lapTime)}` : `Lap ${s.lap}  ·  ${fmtTime(s.lapTime)}${s.best ? '  ·  best ' + fmtTime(s.best) : ''}`, C.fg, `14px ${MONO}`],
       [`Crashes ${s.crashes}   Stalls ${s.stalls}   Grinds ${s.grinds}`, C.dim, `13px ${MONO}`],
       [`In the green ${s.green}%`, s.green >= 75 ? C.good : s.green >= 50 ? C.warn : C.bad, `13px ${MONO}`],
       [s.auto ? 'Auto clutch  ·  C for manual' : `Manual clutch (${s.clutchKey})  ·  C for auto`, C.dim, `13px ${MONO}`],
@@ -144,7 +147,7 @@ export class Hud {
       // Upright phones: the same facts in three short lines, beside a smaller minimap
       lines.splice(0, lines.length,
         [s.section, C.fg, `600 16px ${DISP}`],
-        [`Lap ${s.lap} · ${fmtTime(s.lapTime)}${s.best ? ' · best ' + fmtTime(s.best) : ''}`, C.fg, `12px ${MONO}`],
+        [s.endless ? `${(s.odo / 1000).toFixed(2)} km · ${fmtTime(s.lapTime)}` : `Lap ${s.lap} · ${fmtTime(s.lapTime)}${s.best ? ' · best ' + fmtTime(s.best) : ''}`, C.fg, `12px ${MONO}`],
         [`Green ${s.green}%  Crash ${s.crashes}  Stall ${s.stalls}`, s.green >= 75 ? C.good : s.green >= 50 ? C.warn : C.bad, `11.5px ${MONO}`]);
       this.round(10, 10, w - ms - 28, 20 + lines.length * 19, 12, C.panel);
       g.textAlign = 'left';
@@ -156,10 +159,27 @@ export class Hud {
     }
 
     // Top-right: minimap (drawn at 150 px, scaled down on upright phones)
-    const m = this.map, k = ms / m.size, mx = w - ms - (P ? 10 : 12), my = P ? 10 : 12;
+    const mx = w - ms - (P ? 10 : 12), my = P ? 10 : 12;
     this.round(mx, my, ms, ms, 12, C.panel);
-    g.drawImage(this.mapImg, mx, my, ms, ms);
-    for (const t of s.traffic) { g.fillStyle = t.lane > 0 ? '#8fb3d9' : '#c9a0dc'; g.beginPath(); g.arc(mx + m.tx(t.x) * k, my + m.tz(t.z) * k, 2.2 * Math.max(k, 0.8), 0, 7); g.fill(); }
+    let m = this.map, k = ms / m.size;
+    if (this.world.loop) g.drawImage(this.mapImg, mx, my, ms, ms);
+    else { // endless road: 900 m around the car, drawn live, north up
+      const W = this.world, sc = ms / 900, cxm = s.x, czm = s.z;
+      m = { tx: x => ms / 2 + (x - cxm) * sc, tz: z => ms / 2 + (z - czm) * sc }; k = 1;
+      g.save(); g.beginPath(); g.roundRect(mx, my, ms, ms, 12); g.clip();
+      g.lineJoin = g.lineCap = 'round'; g.lineWidth = 3;
+      for (let i = 0; i < W.end - W.base - 4; i += 4) {
+        const a = W.S[i], b = W.S[i + 4];
+        if (Math.abs(a.x - cxm) > 600 || Math.abs(a.z - czm) > 600) continue;
+        g.strokeStyle = a.surf === 'gravel' ? C.gravel : '#aeb7c0';
+        g.beginPath(); g.moveTo(mx + m.tx(a.x), my + m.tz(a.z)); g.lineTo(mx + m.tx(b.x), my + m.tz(b.z)); g.stroke();
+      }
+      g.restore();
+    }
+    for (const t of s.traffic) {
+      const tx = m.tx(t.x) * k, tz = m.tz(t.z) * k; if (tx < 4 || tz < 4 || tx > ms - 4 || tz > ms - 4) continue; // off this map
+      g.fillStyle = t.lane > 0 ? '#8fb3d9' : '#c9a0dc'; g.beginPath(); g.arc(mx + tx, my + tz, 2.2 * Math.max(k, 0.8), 0, 7); g.fill();
+    }
     g.save(); g.translate(mx + m.tx(s.x) * k, my + m.tz(s.z) * k); g.rotate(-s.yaw + Math.PI); if (P) g.scale(0.8, 0.8);
     g.fillStyle = C.accent; g.beginPath(); g.moveTo(0, -7); g.lineTo(5, 5); g.lineTo(-5, 5); g.closePath(); g.fill();
     g.restore();

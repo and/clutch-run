@@ -58,6 +58,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 html.muted .slash{display:inline}
 html.muted .waves{display:none}
 html.muted .hud-vol input,html.muted .hud-vol span,html.muted .vol input{opacity:.45}
+.conds{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.conds.two{grid-template-columns:1fr 1fr;margin-top:14px}
+.conds label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+.conds select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#161f28;color:var(--fg);font:500 13px var(--mono)}
 .sound-row{display:flex;align-items:center;gap:14px}
 .sound-row .vol{flex:1}
 .snd{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--fg);font:600 15px var(--disp);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;white-space:nowrap}
@@ -78,6 +82,7 @@ body.lhd .t-pedals{right:auto;left:max(14px,env(safe-area-inset-left))}
 .t-gate .knob b{font:700 17px var(--disp);color:var(--fg)}
 #touch button{display:grid;place-items:center;height:40px;min-width:44px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:rgba(10,14,19,.78);color:var(--fg);font:600 15px var(--disp);letter-spacing:.04em;text-transform:uppercase}
 #touch button:active{background:rgba(242,140,43,.35)}
+#touch button[aria-pressed="true"][data-act="lights"]{color:#ffd76a;border-color:#ffd76a}
 .t-pedal{position:relative;width:58px;height:150px;border-radius:12px;border:1px solid var(--line);background:rgba(10,14,19,.78);overflow:hidden}
 .t-pedal i{position:absolute;inset:auto 0 0;height:calc(var(--press,0)*100%);background:var(--bad);opacity:.55}
 .t-pedal.gas i{background:var(--good)}
@@ -93,7 +98,10 @@ body.lhd .t-util{left:auto;right:max(14px,env(safe-area-inset-right))}
 /* phones held sideways: fit the start screen, Start button included, on one short screen */
 @media (max-height:500px){.card{padding:14px 20px}h1{font-size:38px;margin:0 0 4px}.dek{display:none}h2{margin:10px 0 6px}
   .modes button{padding:8px 12px}.modes button b{font-size:19px}.modes button span{font-size:11px;line-height:1.35}
-  .note{margin-top:8px}.go{margin-top:10px;padding:10px;font-size:20px}}
+  .note{margin-top:8px}.go{margin-top:10px;padding:10px;font-size:20px}
+  .modes button span{display:none}.conds select{padding:6px 8px}}
+/* the Start button stays in view at the foot of the card, even when the card has to scroll */
+#menu .go{position:sticky;bottom:0;box-shadow:0 12px 0 var(--panel),0 -10px 14px rgba(12,17,22,.9)}
 </style>
 <script type="importmap">{ "imports": { "three": "./lib/three.module.min.js" } }</script>
 </head>
@@ -146,6 +154,12 @@ body.lhd .t-util{left:auto;right:max(14px,env(safe-area-inset-right))}
       <button type="button" data-side="lhd" aria-pressed="false"><b>Left-hand drive</b><span>As in the US and Europe. Gears on the right, pedals on the left.</span></button>
     </div>
     <p class="note touch-only">Tilt your phone like a steering wheel to steer, held upright or sideways. No tilt? Drag sideways on the road.</p>
+    <h2>Drive</h2>
+    <div class="conds">
+      <label>Road <select data-set="road"><option value="loop">Hill loop (laps)</option><option value="endless">Endless road</option></select></label>
+      <label>Time <select data-set="time"><option value="now">Now (your clock)</option><option value="morning">Morning</option><option value="noon">Midday</option><option value="evening">Evening</option><option value="night">Night</option></select></label>
+      <label>Weather <select data-set="weather"><option value="clear">Clear</option><option value="cloudy">Cloudy</option><option value="rain">Rain</option><option value="fog">Fog</option></select></label>
+    </div>
     <h2>Sound</h2>
     <div class="sound-row">
       <button type="button" class="snd" data-mute><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path class="waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/><path class="slash" d="m16 9 6 6m0-6-6 6"/></svg><span>Sound on</span></button>
@@ -161,6 +175,10 @@ body.lhd .t-util{left:auto;right:max(14px,env(safe-area-inset-right))}
     <h1>Paused</h1>
     <p class="dek desk">Press <kbd>P</kbd> or <kbd>Esc</kbd> to carry on.</p>
     <label class="vol">Volume <input type="range" min="0" max="100" step="5" value="100" data-volume aria-label="Volume"> <span data-volume-label>100%</span></label>
+    <div class="conds two">
+      <label>Time <select data-set="time"><option value="now">Now (your clock)</option><option value="morning">Morning</option><option value="noon">Midday</option><option value="evening">Evening</option><option value="night">Night</option></select></label>
+      <label>Weather <select data-set="weather"><option value="clear">Clear</option><option value="cloudy">Cloudy</option><option value="rain">Rain</option><option value="fog">Fog</option></select></label>
+    </div>
     <button type="button" class="go" id="resume">Resume</button>
   </div>
 </div>
@@ -173,7 +191,7 @@ body.lhd .t-util{left:auto;right:max(14px,env(safe-area-inset-right))}
 
 <div id="touch" hidden>
   <div class="t-util">
-    <button type="button" data-act="engine">Engine</button><button type="button" data-act="view">View</button><button type="button" data-act="reset">Road</button><button type="button" data-act="pause" aria-label="Pause">II</button><button type="button" data-act="mute" aria-label="Mute"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path class="waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/><path class="slash" d="m16 9 6 6m0-6-6 6"/></svg></button>
+    <button type="button" data-act="engine">Engine</button><button type="button" data-act="view">View</button><button type="button" data-act="reset">Road</button><button type="button" data-act="pause" aria-label="Pause">II</button><button type="button" data-act="lights" aria-label="Headlights" aria-pressed="false"><svg width="20" height="18" viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 4C6 4 3 7 3 11s3 7 8 7h1V4z" fill="currentColor"/><path d="M16 7h6M16 11h6M16 15h6"/></svg></button><button type="button" data-act="mute" aria-label="Mute"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path class="waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/><path class="slash" d="m16 9 6 6m0-6-6 6"/></svg></button>
   </div>
   <div class="t-gears">
     <div class="t-gate" data-gate role="slider" aria-label="Gear lever: drag the knob into a gear">

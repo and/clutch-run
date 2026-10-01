@@ -45,7 +45,7 @@ export function makeCar(color) {
   }
   const sh = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 4.7), new THREE.MeshBasicMaterial({ map: blobShadow(), transparent: true, depthWrite: false }));
   sh.rotation.x = -Math.PI / 2; sh.position.y = 0.04; g.add(sh);
-  return { group: g, wheels, steer, brakeMat };
+  return { group: g, wheels, steer, brakeMat, headMat };
 }
 
 // Driver's-seat interior, right-hand drive as in India. Only shown in the inside view.
@@ -85,13 +85,32 @@ export function addInterior(c) {
   return c;
 }
 
-// Place a car on the ground: yaw, then pitch and roll from the surface.
-export function poseCar(c, x, y, z, yaw, pitch, roll, v, steerAngle, dt, braking) {
+// Place a car on the ground: yaw, then pitch and roll from the surface. lit = headlights and tail lights on.
+export function poseCar(c, x, y, z, yaw, pitch, roll, v, steerAngle, dt, braking, lit = false) {
   const g = c.group;
   g.position.set(x, y, z);
   g.rotation.set(pitch, yaw, roll, 'YXZ');
   for (const w of c.wheels) w.rotation.x += v * dt / 0.3;
   for (const p of c.steer) p.rotation.y = steerAngle;
   if (c.wheelSpin) c.wheelSpin.rotation.z = -steerAngle * 6;
-  c.brakeMat.emissiveIntensity = braking ? 1.6 : 0.15;
+  c.brakeMat.emissiveIntensity = braking ? 1.6 : lit ? 0.7 : 0.15;
+  c.headMat.emissiveIntensity = lit ? 3 : 0.4;
 }
+
+// Headlight beams for the player's car: two spotlights that light the road ahead in the dark.
+// They stay in the scene at zero brightness when off, so switching them never makes the
+// renderer rebuild its shaders (which would stutter).
+export function addHeadlights(c) {
+  const beams = [];
+  for (const s of [-1, 1]) {
+    // bright, as real headlamps are: light reaching the road far ahead lands at a grazing angle
+    const l = new THREE.SpotLight(0xfff2d6, 0, 120, 0.36, 0.65, 1.5);
+    l.position.set(s * 0.6, 0.72, 1.9);
+    l.target.position.set(s * 1.4, 0, 40); // aimed just below the horizon, lighting about 50 m of road
+    c.group.add(l, l.target);
+    beams.push(l);
+  }
+  c.beams = beams;
+  return c;
+}
+export function setHeadlights(c, on) { for (const l of c.beams) l.intensity = on ? 2200 : 0; }

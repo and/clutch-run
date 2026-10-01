@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { World, LANE, ROAD_HALF, HALF } from './world.js';
+import { EndlessWorld } from './endless.js';
 import { Drivetrain, SPEC, TOP_GEAR, BITE_TOP, BITE_BOTTOM } from './drivetrain.js';
 import { Sound } from './audio.js';
 import { Hud, fmtTime } from './hud.js';
-import { makeCar, poseCar, addInterior, DRIVER } from './cars.js';
+import { makeCar, poseCar, addInterior, addHeadlights, setHeadlights, DRIVER } from './cars.js';
+import { Sky, TIMES, WEATHERS } from './sky.js';
 import { TouchControls } from './touch.js';
 
 // Phones and tablets get on-screen pedals, gear buttons and tilt steering.
@@ -28,35 +30,47 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 const scene = new THREE.Scene();
-const HORIZON = 0xcfdde6;
-scene.background = new THREE.Color(HORIZON);
-scene.fog = new THREE.Fog(HORIZON, 180, 950);
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.05, 2000);
 // The fov values below are for a wide screen. A narrower one keeps the width a 1.3:1 screen sees,
 // so a phone held upright still shows the sides of the road instead of a slot down the middle.
 const FOV_REF = 1.3;
 const fitFov = v => camera.aspect >= FOV_REF ? v : 2 * Math.atan(Math.tan(v * Math.PI / 360) * FOV_REF / camera.aspect) * 180 / Math.PI;
 
-scene.add(new THREE.HemisphereLight(0xe3efff, 0x55623a, 1.15));
-const sun = new THREE.DirectionalLight(0xfff0da, 2.3); sun.position.set(-400, 520, 260); scene.add(sun);
-{
-  const geo = new THREE.SphereGeometry(1600, 24, 12), col = [], pos = geo.attributes.position, top = new THREE.Color(0x6f9fd0), hz = new THREE.Color(HORIZON), c = new THREE.Color();
-  for (let i = 0; i < pos.count; i++) { const t = clamp(pos.getY(i) / 1600, 0, 1); c.copy(hz).lerp(top, Math.pow(t, 0.6)); col.push(c.r, c.g, c.b); }
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  scene.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false })));
-}
+// Sky, sun, fog and weather; the time of day follows the player's clock unless they pick one
+const sky = new Sky(scene);
 
 /* ---------- World, player, traffic ---------- */
-const world = new World(scene);
-const L = world.length;
-const wrap = d => ((d % L) + L) % L;
+// The road: the hill loop (with laps) or the endless road, chosen on the start screen
+let world = null, worldRoot = null, L = 0;
+function makeWorld(kind) {
+  if (worldRoot) scene.remove(worldRoot);
+  worldRoot = new THREE.Group(); scene.add(worldRoot);
+  world = kind === 'endless' ? new EndlessWorld(worldRoot) : new World(worldRoot);
+  L = world.length;
+  sky.setView(world.view);
+}
+{
+  let road = 'loop';
+  try { if (JSON.parse(localStorage.getItem('clutchrun-settings') || '{}').road === 'endless') road = 'endless'; } catch (e) {}
+  makeWorld(road);
+}
+// Distances along the road wrap round the loop; on the endless road they just keep growing
+const wrap = d => world.loop ? ((d % L) + L) % L : d;
 const wrapDiff = (a, b) => wrap(a - b + L / 2) - L / 2;
+const gapAhead = x => world.loop ? wrap(x) : x > 0 ? x : Infinity;
 
 const dt = new Drivetrain();
 const sound = new Sound();
 const hud = new Hud(document.getElementById('hud'), world);
+// Switch road (from the start screen): build the other world and start again at its beginning
+function useRoad(kind) {
+  if ((kind === 'endless') === !world.loop) return;
+  makeWorld(kind); hud.setWorld(world); placeTraffic();
+  Object.assign(state, { lap: 1, lapRunning: false, lapTime: 0, best: null, nextCp: 0, odo: 0, pd: 6, crashes: 0, stalls: 0, grinds: 0, greenT: 0, driveT: 0 });
+  spawnAt(6); camInit = false;
+}
 
-const player = { x: 0, z: 0, y: 0, yaw: 0, steer: 0, steerVel: 0, head: 0, grip: 1, pitch: 0, roll: 0, car: addInterior(makeCar(0xe0730f)) };
+const player = { x: 0, z: 0, y: 0, yaw: 0, steer: 0, steerVel: 0, head: 0, grip: 1, pitch: 0, roll: 0, car: addHeadlights(addInterior(makeCar(0xe0730f))) };
 scene.add(player.car.group);
 
 function spawnAt(d) {
@@ -69,12 +83,18 @@ const PALETTE = [0x3a6ea5, 0xd7d9dc, 0x2f3438, 0x8c2f2f, 0x5e7d4d, 0xc9b27c, 0x6
 const traffic = [];
 for (let k = 0; k < 11; k++) {
   const lane = k < 6 ? 1 : -1;
-  const d = lane > 0 ? 160 + k * (L - 200) / 6 : 90 + (k - 6) * L / 5;
   const cruise = lane > 0 ? 10 + (k % 3) * 1.8 : 12 + (k % 3) * 1.5;
   const car = makeCar(PALETTE[k % PALETTE.length]);
   scene.add(car.group);
-  traffic.push({ d, lane, dir: lane, cruise, speed: cruise, stopT: 0, car, x: 0, z: 0, yaw: 0 });
+  traffic.push({ d: 0, lane, dir: lane, cruise, speed: cruise, stopT: 0, car, x: 0, z: 0, yaw: 0 });
 }
+function placeTraffic() {
+  traffic.forEach((t, k) => {
+    t.d = world.loop ? (t.lane > 0 ? 160 + k * (L - 200) / 6 : 90 + (k - 6) * L / 5) : (t.lane > 0 ? 160 + k * 150 : 300 + (k - 6) * 220);
+    t.speed = t.cruise; t.stopT = 0;
+  });
+}
+placeTraffic();
 
 /* ---------- Input ---------- */
 // Two key layouts. "pedals" puts the three pedals on ← ↓ → in the same order as in a real car.
@@ -97,7 +117,7 @@ const state = {
   throttle: 0, brake: 0, handbrake: 0, clutchHold: 0,
   crashes: 0, stalls: 0, grinds: 0, crashCool: 0, shake: 0,
   lap: 1, lapRunning: false, lapTime: 0, best: null, nextCp: 0,
-  greenT: 0, driveT: 0, lastToast: {}, keyOff: false,
+  greenT: 0, driveT: 0, lastToast: {}, keyOff: false, lights: false, pd: 6, odo: 0,
 };
 
 function toastOnce(key, text, tone, gap = 4) {
@@ -143,8 +163,9 @@ window.addEventListener('keydown', e => {
   }
   else if (c === 'KeyC') { dt.autoClutch = !dt.autoClutch; hud.toast(dt.autoClutch ? 'Auto clutch on' : `Manual clutch: hold ${K.clutchName} to press it`); }
   else if (c === 'KeyV') { state.cam = (state.cam + 1) % CAMS.length; hud.toast(CAMS[state.cam]); }
-  else if (c === 'KeyT') { const n = world.nearest(player.x, player.z, 6); spawnAt(n ? n.i * world.ds : 0); dt.setGear(0); hud.toast('Back on the road'); }
+  else if (c === 'KeyT') { const n = world.nearest(player.x, player.z, 6); spawnAt(n ? n.d : state.pd); dt.setGear(0); hud.toast('Back on the road'); }
   else if (c === 'KeyM') { setMuted(!sound.muted); hud.toast(sound.muted ? 'Sound off' : 'Sound on'); }
+  else if (c === 'KeyL') setLights(!state.lights);
   else if (c === 'Minus' || c === 'Equal') { setVolume(Math.round(sound.volume * 10 + (c === 'Equal' ? 1 : -1)) / 10); hud.toast(`Volume ${Math.round(sound.volume * 100)}%`); }
 });
 window.addEventListener('keyup', e => keys.delete(e.code));
@@ -199,12 +220,17 @@ function collide() {
 
 /* ---------- Traffic ---------- */
 function updateTraffic(h, pd, pLane) {
+  const trafficLit = sky.dark > 0.45 || sky.weather !== 'clear'; // other drivers put their lights on in the dark and in bad weather
   for (const t of traffic) {
+    if (!world.loop) { // endless road: cars left far behind, or far ahead, are sent on ahead again
+      const rel = t.d - pd;
+      if ((t.dir > 0 ? rel < -250 : rel < -120) || rel > 1300) { t.d = pd + 450 + Math.random() * 700; t.speed = t.cruise; t.stopT = 0; }
+    }
     if (t.stopT > 0) { t.stopT -= h; t.speed = Math.max(0, t.speed - 9 * h); }
     else {
       let gap = Infinity;
-      for (const o of traffic) if (o !== t && o.lane === t.lane) { const gd = wrap((o.d - t.d) * t.dir); if (gd < gap) gap = gd; }
-      if (pLane === t.lane || pLane === 0) { const gd = wrap((pd - t.d) * t.dir); if (gd < gap) gap = gd; }
+      for (const o of traffic) if (o !== t && o.lane === t.lane) { const gd = gapAhead((o.d - t.d) * t.dir); if (gd < gap) gap = gd; }
+      if (pLane === t.lane || pLane === 0) { const gd = gapAhead((pd - t.d) * t.dir); if (gd < gap) gap = gd; }
       let tgt = t.cruise;
       if (gap < 50) tgt = Math.min(tgt, Math.max(0, (gap - 9) * 0.5));
       t.speed += clamp(tgt - t.speed, -8 * h, 2.2 * h);
@@ -215,7 +241,7 @@ function updateTraffic(h, pd, pLane) {
     const p = world.pointAt(t.d, t.lane * LANE);
     t.x = p.x; t.z = p.z; t.yaw = Math.atan2(p.tx, p.tz) + (t.dir < 0 ? Math.PI : 0);
     const grade = world.S[p.i].grade * t.dir;
-    poseCar(t.car, p.x, p.y + 0.03, p.z, t.yaw, -Math.atan(grade), 0, t.speed, 0, h, t.braking || t.speed < 0.5);
+    poseCar(t.car, p.x, p.y + 0.03, p.z, t.yaw, -Math.atan(grade), 0, t.speed, 0, h, t.braking || t.speed < 0.5, trafficLit);
   }
 }
 
@@ -248,6 +274,7 @@ function coach(n, grade) {
     if (grade < -0.06 && dt.gear >= 4 && sp > 12) return { hint: { text: 'Steep descent: a lower gear holds your speed', tone: 'warn' }, suggest: { gear: 3, dir: -1 } };
     if (rpm > 3200 && dt.gear < TOP_GEAR && state.throttle < 0.5 && Math.abs(grade) < 0.03) { const g = bestGear(1); if (dt.wheelRpmFor(g) > 1500) return { suggest: { gear: g, dir: 1 } }; }
   }
+  if (!state.lights && (sky.dark > 0.55 || sky.weather === 'fog')) return { hint: { text: tk(sky.dark > 0.55 ? "It's dark: press L for the headlights" : 'Fog: press L for the headlights', 'Turn the headlights on: tap the light button'), tone: 'warn' } };
   return {};
 }
 
@@ -298,9 +325,9 @@ function update(h) {
   const crr = here.surf === 'asphalt' ? 0.015 : here.surf === 'gravel' ? 0.035 : 0.1;
   // grip changes over a few frames as the tyres cross onto another surface, not in one step
   player.grip += ((here.surf === 'asphalt' ? 1 : here.surf === 'gravel' ? 0.82 : 0.7) - player.grip) * (1 - Math.exp(-h * 8));
-  const grip = player.grip;
+  const grip = player.grip * sky.grip; // rain: a wet road grips less
 
-  dt.step(h, { throttle: state.throttle, brake: state.brake, handbrake: state.handbrake }, { sinGrade: sinG, crr });
+  dt.step(h, { throttle: state.throttle, brake: state.brake, handbrake: state.handbrake }, { sinGrade: sinG, crr, grip: sky.grip });
   for (const ev of dt.events) {
     if (ev === 'stall') { state.stalls++; sound.clunk(); hud.toast('Stalled!', 'bad'); }
     if (ev === 'started') { state.keyOff = false; hud.toast('Engine running', 'good'); }
@@ -311,7 +338,7 @@ function update(h) {
   player.yaw += dt.v / SPEC.wheelbase * Math.tan(player.steer) * grip * h;
   player.x += Math.sin(player.yaw) * dt.v * h;
   player.z += Math.cos(player.yaw) * dt.v * h;
-  player.x = clamp(player.x, -HALF + 20, HALF - 20); player.z = clamp(player.z, -HALF + 20, HALF - 20);
+  if (world.loop) { player.x = clamp(player.x, -HALF + 20, HALF - 20); player.z = clamp(player.z, -HALF + 20, HALF - 20); }
   collide();
   state.crashCool -= h;
 
@@ -319,19 +346,22 @@ function update(h) {
   player.y += (now.y - player.y) * Math.min(1, h * 20);
   player.pitch += (-Math.atan(sinG) - player.pitch) * Math.min(1, h * 10);
   player.roll += (Math.atan((hL - hR) / 1.6) - player.roll) * Math.min(1, h * 10);
-  poseCar(player.car, player.x, player.y, player.z, player.yaw, player.pitch, player.roll, dt.v, player.steer, h, state.brake > 0.1);
+  poseCar(player.car, player.x, player.y, player.z, player.yaw, player.pitch, player.roll, dt.v, player.steer, h, state.brake > 0.1, state.lights);
 
   // where we are on the loop
   const n = world.nearest(player.x, player.z, 3);
-  const pd = n ? wrap(n.i * world.ds + n.along) : 0;
+  if (n) state.pd = wrap(n.d); // off the road, keep the last place on it
+  const pd = state.pd;
+  if (!world.loop) world.update(pd, player.x, player.z); // build the road ahead and the land around, clear what's behind
   const pLane = n && n.dist < ROAD_HALF + 1 ? (n.lat > 0.4 ? 1 : n.lat < -0.4 ? -1 : 0) : 2;
   updateTraffic(h, pd, pLane);
 
-  // laps
+  // laps on the loop, distance on the endless road
   // The lap clock counts game time, so a pause or a hidden tab doesn't add to the lap
   if (!state.lapRunning && sp > 0.5) { state.lapRunning = true; state.lapTime = 0; }
   if (state.lapRunning) state.lapTime += h;
-  if (n) {
+  state.odo += sp * h;
+  if (n && world.loop) {
     const cps = [0.25, 0.5, 0.75].map(f => f * L);
     if (state.nextCp < 3 && Math.abs(wrapDiff(pd, cps[state.nextCp])) < 20) state.nextCp++;
     else if (state.nextCp === 3 && Math.abs(wrapDiff(pd, 0)) < 12) {
@@ -381,6 +411,8 @@ function update(h) {
   camera.fov = fitFov(60 + Math.min(12, sp * 0.3)); camera.updateProjectionMatrix();
   }
 
+  sky.update(h, camera);
+
   // HUD
   const c = coach(n, sinG);
   const section = !n || n.dist > ROAD_HALF + 1 ? 'Off road · grass'
@@ -391,6 +423,7 @@ function update(h) {
     suggest: c.suggest, hint: c.hint,
     clutch: dt.autoClutch ? (dt.gear === 0 ? 0 : 1 - dt.eng) : dt.pedal, brake: state.brake, throttle: state.throttle,
     auto: dt.autoClutch, clutchKey: K.clutchName, bite: [BITE_BOTTOM, BITE_TOP], section, lap: state.lap, lapTime: state.lapTime, best: state.best,
+    endless: !world.loop, odo: state.odo,
     crashes: state.crashes, stalls: state.stalls, grinds: state.grinds,
     green: state.driveT > 1 ? Math.round(100 * state.greenT / state.driveT) : 100,
     traffic, x: player.x, z: player.z, yaw: player.yaw, touch: !!touch,
@@ -431,7 +464,7 @@ let touch = null;
 if (TOUCH) {
   touch = new TouchControls($('touch'), canvas);
   const press = code => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); window.dispatchEvent(new KeyboardEvent('keyup', { code })); };
-  const acts = { engine: 'KeyI', view: 'KeyV', reset: 'KeyT', pause: 'KeyP', mute: 'KeyM' };
+  const acts = { engine: 'KeyI', view: 'KeyV', reset: 'KeyT', pause: 'KeyP', mute: 'KeyM', lights: 'KeyL' };
   for (const [act, code] of Object.entries(acts)) touch.on(act, () => press(code));
   touch.on('gear', g => requestGear(g)); // the H-pattern lever
   const setSide = side => {
@@ -479,6 +512,27 @@ document.querySelectorAll('[data-mute]').forEach(b => b.addEventListener('click'
   setVolume(v);
   setMuted(muted);
 }
+// Headlights: L, or the light button on a phone
+function setLights(on) {
+  state.lights = on; setHeadlights(player.car, on);
+  document.querySelectorAll('[data-act="lights"]').forEach(b => b.setAttribute('aria-pressed', on));
+  if (state.started) hud.toast(on ? 'Headlights on' : 'Headlights off');
+}
+// Road, time of day and weather: chosen on the start screen (time and weather on the pause screen too), remembered
+const settings = { road: 'loop', time: 'now', weather: 'clear' };
+try { const saved = JSON.parse(localStorage.getItem('clutchrun-settings') || '{}'); for (const k in settings) if (typeof saved[k] === 'string') settings[k] = saved[k]; } catch (e) {}
+if (!TIMES[settings.time]) settings.time = 'now';
+if (!WEATHERS[settings.weather]) settings.weather = 'clear';
+function setSetting(key, val) {
+  settings[key] = val;
+  document.querySelectorAll(`[data-set="${key}"]`).forEach(x => { x.value = val; });
+  try { localStorage.setItem('clutchrun-settings', JSON.stringify(settings)); } catch (e) {}
+  if (key === 'time' || key === 'weather') sky.set(settings.time, settings.weather);
+  if (key === 'road') useRoad(val);
+}
+document.querySelectorAll('[data-set]').forEach(x => x.addEventListener('change', () => setSetting(x.dataset.set, x.value)));
+for (const k of ['time', 'weather']) setSetting(k, settings[k]);
+document.querySelectorAll('[data-set="road"]').forEach(x => { x.value = settings.road; });
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('[data-mode]').forEach(x => x.setAttribute('aria-pressed', x === b));
   dt.autoClutch = b.dataset.mode === 'auto';
@@ -511,4 +565,4 @@ fitScreen();
 spawnAt(6);
 requestAnimationFrame(frame);
 // test hook: advance the simulation without waiting for frames
-window.__game = { dt, player, state, world, traffic, sim: secs => { for (let i = 0; i < secs * 60; i++) update(1 / 60); } };
+window.__game = { dt, player, state, get world() { return world; }, traffic, sim: secs => { for (let i = 0; i < secs * 60; i++) update(1 / 60); } };

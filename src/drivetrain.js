@@ -40,7 +40,7 @@ export class Drivetrain {
 
   crank() { if (this.on || this.crankT > 0) return false; this.crankT = 0.8; return true; }
 
-  // inp: {throttle, brake, handbrake 0..1}; env: {sinGrade, crr}
+  // inp: {throttle, brake, handbrake 0..1}; env: {sinGrade, crr, grip (1 dry, less when wet)}
   step(dt, inp, env) {
     const n = 10, h = dt / n, m = SPEC.mass, g = SPEC.g;
     const v0 = this.v;
@@ -87,7 +87,7 @@ export class Drivetrain {
       const Fg = -m * g * env.sinGrade;
       const Fa = -0.42 * this.v * Math.abs(this.v);
       let v = this.v + (Fd + Fg + Fa) / m * h;
-      const Fr = inp.brake * 9500 + inp.handbrake * 5000 + env.crr * m * g; // can stop the car, never reverse it
+      const Fr = (inp.brake * 9500 + inp.handbrake * 5000) * (env.grip ?? 1) + env.crr * m * g; // can stop the car, never reverse it; less on a wet road
       const dv = Fr / m * h;
       v = Math.abs(v) <= dv ? 0 : v - Math.sign(v) * dv;
       this.v = v;
