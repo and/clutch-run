@@ -131,6 +131,7 @@ export class Hud {
       [`In the green ${s.green}%`, s.green >= 75 ? C.good : s.green >= 50 ? C.warn : C.bad, `13px ${MONO}`],
       [s.auto ? 'Auto clutch  ·  C for manual' : `Manual clutch (${s.clutchKey})  ·  C for auto`, C.dim, `13px ${MONO}`],
     ];
+    if (s.touch) lines.pop(); // phones have no C key, and the clutch is automatic there
     this.round(12, 12, 290, 24 + lines.length * 22, 12, C.panel);
     g.textAlign = 'left';
     lines.forEach(([t, col, f], i) => { g.fillStyle = col; g.font = f; g.fillText(t, 26, 34 + i * 22); });

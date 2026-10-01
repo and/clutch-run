@@ -4,6 +4,11 @@ import { Drivetrain, SPEC, TOP_GEAR, BITE_TOP, BITE_BOTTOM } from './drivetrain.
 import { Sound } from './audio.js';
 import { Hud, fmtTime } from './hud.js';
 import { makeCar, poseCar, addInterior, DRIVER } from './cars.js';
+import { TouchControls } from './touch.js';
+
+// Phones and tablets get on-screen pedals, gear buttons and tilt steering. ?touch forces them on a desktop.
+const TOUCH = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('touch');
+if (TOUCH) document.body.classList.add('touch');
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ORD = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th' };
@@ -12,7 +17,7 @@ const gearName = g => g === -1 ? 'R' : g === 0 ? 'N' : String(g);
 /* ---------- Renderer, scene, sky ---------- */
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, TOUCH ? 1.5 : 2)); // phones: fewer pixels, steadier frames
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
@@ -212,17 +217,20 @@ function bestGear(dir) {
   return Math.max(1, dt.gear - 1);
 }
 
+// Hints name the key on a keyboard and the button on a phone
+const tk = (key, button) => touch ? button : key;
+
 function coach(n, grade) {
   const rpm = dt.rpm, sp = dt.v;
   if (dt.crankT > 0) return { hint: { text: 'Starting the engine…', tone: 'warn' } };
-  if (!dt.on) return { hint: state.keyOff ? { text: 'Engine off. Press I to start it (select N first)', tone: 'warn' } : { text: 'Stalled. Press I to restart (select N first)', tone: 'bad' } };
-  if (n && n.dist > ROAD_HALF + 1 && Math.abs(sp) > 1) return { hint: { text: 'Off the road. Press T to get back on it', tone: 'warn' } };
+  if (!dt.on) return { hint: state.keyOff ? { text: tk('Engine off. Press I to start it (select N first)', 'Engine off. Tap Engine to start it'), tone: 'warn' } : { text: tk('Stalled. Press I to restart (select N first)', 'Stalled. Tap Engine to restart'), tone: 'bad' } };
+  if (n && n.dist > ROAD_HALF + 1 && Math.abs(sp) > 1) return { hint: { text: tk('Off the road. Press T to get back on it', 'Off the road. Tap Road to get back on it'), tone: 'warn' } };
   if (n && n.lat < -0.6 && sp > 3 && n.dist < ROAD_HALF + 1) return { hint: { text: 'Keep left: you are in the oncoming lane', tone: 'bad' } };
   if (!dt.autoClutch && dt.gear !== 0 && Math.abs(sp) < 4 && dt.pedal < BITE_TOP && dt.pedal > BITE_BOTTOM) {
     if (rpm < 1000) return { hint: { text: `Revs dropping: more accelerator, or clutch back in (${K.clutchName})`, tone: 'bad' } };
     return { hint: { text: `Clutch at the bite point: tap ${K.clutchName} to hold it here`, tone: 'good' } };
   }
-  if (dt.gear === 0 && state.throttle > 0.3 && Math.abs(sp) < 1) return { hint: { text: 'You are in neutral. Press 1 for first gear', tone: 'warn' }, suggest: { gear: 1, dir: 1 } };
+  if (dt.gear === 0 && state.throttle > 0.3 && Math.abs(sp) < 1) return { hint: { text: tk('You are in neutral. Press 1 for first gear', 'You are in neutral. Tap ▲ for first gear'), tone: 'warn' }, suggest: { gear: 1, dir: 1 } };
   if (dt.gear > 0) {
     if (rpm > 5600 && dt.gear < TOP_GEAR) { const g = bestGear(1); return { hint: { text: `High revs: change up to ${ORD[g]}`, tone: 'bad' }, suggest: { gear: g, dir: 1 } }; }
     if (grade > 0.06 && dt.gear >= 3 && rpm < 2300 && sp > 2) { const g = Math.min(2, bestGear(-1)); return { hint: { text: `Steep climb: change down to ${ORD[g]}`, tone: 'warn' }, suggest: { gear: g, dir: -1 } }; }
@@ -241,9 +249,10 @@ let camInit = false;
 
 function update(h) {
   // pedals and steering
-  const ramp = (cur, on, up, dn) => clamp(cur + (on ? up : -dn) * h, 0, 1);
-  state.throttle = ramp(state.throttle, down(...K.throttle), 3.5, 6);
-  state.brake = ramp(state.brake, down(...K.brake), 4, 8);
+  // each pedal heads for its target: 1 while its key is held, or how hard the touch pedal is pressed
+  const ramp = (cur, tgt, up, dn) => cur + clamp(tgt - cur, -dn * h, up * h);
+  state.throttle = ramp(state.throttle, Math.max(down(...K.throttle) ? 1 : 0, touch ? touch.throttle : 0), 3.5, 6);
+  state.brake = ramp(state.brake, Math.max(down(...K.brake) ? 1 : 0, touch ? touch.brake : 0), 4, 8);
   state.handbrake = down(...K.handbrake) ? 1 : 0;
   // Clutch pedal. Holding the key pushes it down (gently for the first moment, so a tap nudges it).
   // Letting go lets it rise by itself: quickly to the bite point, slowly through it, quickly after,
@@ -256,7 +265,8 @@ function update(h) {
   state.horn = down('KeyH');
 
   const sp = Math.abs(dt.v);
-  const steerIn = (down(...K.left) ? 1 : 0) - (down(...K.right) ? 1 : 0);
+  const keySteer = (down(...K.left) ? 1 : 0) - (down(...K.right) ? 1 : 0);
+  const steerIn = keySteer || (touch ? -touch.steer : 0); // + = left; touch steering is analog
   // Full lock only at parking speeds; faster, the lock is what keeps cornering under ~0.7 g,
   // as real tyres would. Otherwise a tap on A or D whips the car round at well over 1 g.
   const maxSteer = Math.min(0.55, Math.atan(SPEC.wheelbase * 7 / Math.max(sp * sp, 1e-3)));
@@ -371,7 +381,7 @@ function update(h) {
     auto: dt.autoClutch, clutchKey: K.clutchName, bite: [BITE_BOTTOM, BITE_TOP], section, lap: state.lap, lapTime: state.lapTime, best: state.best,
     crashes: state.crashes, stalls: state.stalls, grinds: state.grinds,
     green: state.driveT > 1 ? Math.round(100 * state.greenT / state.driveT) : 100,
-    traffic, x: player.x, z: player.z, yaw: player.yaw,
+    traffic, x: player.x, z: player.z, yaw: player.yaw, touch: !!touch,
   }, h);
 }
 
@@ -388,6 +398,7 @@ function frame(t) {
 const $ = id => document.getElementById(id);
 function setPaused(p) {
   state.paused = p; $('pause').hidden = !p; $('hud-vol').hidden = p; // the pause screen has its own slider
+  if (touch) $('touch').hidden = p;
   if (sound.ctx) p ? sound.ctx.suspend() : sound.ctx.resume();
 }
 function showLap(t) {
@@ -403,6 +414,23 @@ function setLayout(name) {
 }
 document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.layout)));
 setLayout(layoutName);
+// Touch controls. The driving side puts the gears under the hand that works the lever in that car.
+let touch = null;
+if (TOUCH) {
+  touch = new TouchControls($('touch'), canvas);
+  const press = code => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); window.dispatchEvent(new KeyboardEvent('keyup', { code })); };
+  const acts = { up: 'KeyE', down: 'KeyQ', n: 'KeyN', r: 'KeyR', engine: 'KeyI', view: 'KeyV', reset: 'KeyT', pause: 'KeyP' };
+  for (const [act, code] of Object.entries(acts)) touch.on(act, () => press(code));
+  const setSide = side => {
+    document.body.classList.toggle('lhd', side === 'lhd');
+    document.querySelectorAll('[data-side]').forEach(x => x.setAttribute('aria-pressed', x.dataset.side === side));
+    try { localStorage.setItem('clutchrun-side', side); } catch (e) {}
+  };
+  document.querySelectorAll('[data-side]').forEach(b => b.addEventListener('click', () => setSide(b.dataset.side)));
+  let side = 'rhd';
+  try { if (localStorage.getItem('clutchrun-side') === 'lhd') side = 'lhd'; } catch (e) {}
+  setSide(side);
+}
 // Volume: sliders on the start and pause screens and in the game's corner panel, - and = while
 // driving, remembered in the browser
 function setVolume(v) {
@@ -434,8 +462,16 @@ document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click'
   dt.autoClutch = b.dataset.mode === 'auto';
 }));
 $('go').addEventListener('click', () => {
+  if (touch) {
+    // both need this tap: iPhones ask for motion access, Android goes full screen and sideways
+    touch.enableTilt().then(ok => { setTimeout(() => { if (!ok || !touch.tilting) hud.toast('No tilt here: drag sideways on the road to steer', 'warn'); }, 1500); });
+    const el = document.documentElement;
+    try { if (el.requestFullscreen) el.requestFullscreen().then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {}); } catch (e) {}
+    dt.autoClutch = true; // one thumb can't hold the clutch and the accelerator at once
+    $('touch').hidden = false;
+  }
   sound.init(); state.started = true; $('menu').hidden = true; $('hud-vol').hidden = false;
-  hud.toast(`Press 1 for first gear, then ${K.goName} to go`, 'fg');
+  hud.toast(touch ? 'Tap ▲ for first gear, then press Accel' : `Press 1 for first gear, then ${K.goName} to go`, 'fg');
   canvas.focus();
 });
 $('resume').addEventListener('click', () => setPaused(false));

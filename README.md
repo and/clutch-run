@@ -21,11 +21,16 @@ Pick a layout on the start screen. **Standard** is below. **Pedals on arrows** p
 | C / M / P | Clutch mode / sound / pause |
 | − / = | Volume down / up (also a slider and mute button under the minimap, and on the start and pause screens) |
 
+## On a phone
+
+Hold the phone sideways. Tilt it like a steering wheel to steer, or drag sideways on the road if tilt isn't available. The accelerator and brake are analog: press higher up a pedal to press harder. Gears (▲ ▼ N R) and the Engine, View, Road and pause buttons sit under the other thumb. The start screen asks for right-hand drive (gears on the left, as in India) or left-hand drive (mirrored). The clutch is automatic on phones. Add `?touch` to the URL to try the phone controls on a computer.
+
 ## How it works
 
 - `src/drivetrain.js` models the engine (torque curve, idle, stalling), the clutch and a 5-speed gearbox, with the same gear ratios as the car in [Reading the Rev Counter](https://and.github.io/cars/rev-counter/).
 - `src/world.js` builds the terrain, the road loop, the village and trees in code, so there are no model files.
 - `src/audio.js` synthesises the engine, tyres, crashes and gear grinds with the Web Audio API, so there are no sound files.
+- `src/touch.js` handles the phone controls: tilt steering, the analog pedals and the buttons.
 - `src/hud.js` draws the rev counter, speedometer, gear, pedals and minimap.
 - `lib/three.module.min.js` is [three.js](https://threejs.org) r160 (MIT licence).
 

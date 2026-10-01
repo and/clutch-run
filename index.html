@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Clutch Run</title>
 <meta name="description" content="A 3D driving game in your browser: drive a manual hatchback over hills, gravel and village roads, change gears yourself, and keep the revs in the green.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -52,10 +52,35 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .hud-vol.muted .slash{display:inline}
 .hud-vol.muted .waves{display:none}
 .hud-vol.muted input,.hud-vol.muted span{opacity:.45}
+/* phones: touch controls, mirrored for left-hand drive */
+body:not(.touch) .touch-only, body.touch .desk, body.touch .hud-vol{display:none!important}
+body.touch #scene{touch-action:none}
+#touch{position:fixed;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#touch>*{position:absolute;bottom:max(14px,env(safe-area-inset-bottom));pointer-events:auto;touch-action:none}
+.t-gears{left:max(14px,env(safe-area-inset-left));display:grid;gap:8px}
+.t-pedals{right:max(14px,env(safe-area-inset-right));display:flex;gap:10px;align-items:flex-end}
+body.lhd .t-gears{left:auto;right:max(14px,env(safe-area-inset-right))}
+body.lhd .t-pedals{right:auto;left:max(14px,env(safe-area-inset-left))}
+.t-row{display:flex;gap:6px}
+.t-shift{display:grid;grid-template-columns:64px 46px;gap:8px}
+#touch button{height:40px;min-width:44px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:rgba(10,14,19,.78);color:var(--fg);font:600 15px var(--disp);letter-spacing:.04em;text-transform:uppercase}
+#touch button:active{background:rgba(242,140,43,.35)}
+#touch .t-big{height:58px;font-size:24px}
+.t-pedal{position:relative;width:58px;height:150px;border-radius:12px;border:1px solid var(--line);background:rgba(10,14,19,.78);overflow:hidden}
+.t-pedal i{position:absolute;inset:auto 0 0;height:calc(var(--press,0)*100%);background:var(--bad);opacity:.55}
+.t-pedal.gas i{background:var(--good)}
+.t-pedal b{position:absolute;inset:auto 0 8px;text-align:center;font:600 13px var(--disp);text-transform:uppercase;letter-spacing:.06em}
+.rotate{display:none}
+@media (orientation:portrait){body.touch .rotate{position:fixed;inset:0;z-index:5;display:grid;place-content:center;gap:6px;padding:24px;text-align:center;background:var(--bg)}
+  .rotate b{font:700 30px var(--disp);text-transform:uppercase}.rotate p{margin:0;color:var(--muted);font-size:14px}}
 .toast-card{position:fixed;left:50%;top:22%;transform:translateX(-50%);width:min(520px,calc(100% - 32px));background:var(--panel);border:1px solid var(--good);border-radius:14px;padding:18px 22px;text-align:center}
 .toast-card b{display:block;font:700 30px var(--disp);text-transform:uppercase;color:var(--good)}
 .toast-card p{margin:6px 0 0;font-size:14px;line-height:1.5}
 @media (max-width:560px){.modes{grid-template-columns:1fr}.card{padding:20px}}
+/* phones held sideways: fit the start screen, Start button included, on one short screen */
+@media (max-height:500px){.card{padding:14px 20px}h1{font-size:38px;margin:0 0 4px}.dek{display:none}h2{margin:10px 0 6px}
+  .modes button{padding:8px 12px}.modes button b{font-size:19px}.modes button span{font-size:11px;line-height:1.35}
+  .note{margin-top:8px}.go{margin-top:10px;padding:10px;font-size:20px}}
 </style>
 <script type="importmap">{ "imports": { "three": "./lib/three.module.min.js" } }</script>
 </head>
@@ -67,17 +92,17 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   <div class="card">
     <h1>Clutch <span>Run</span></h1>
     <p class="dek">Drive a manual car round a hill loop. You change the gears. Keep the revs in the green and keep left.</p>
-    <h2>Clutch</h2>
-    <div class="modes">
+    <h2 class="desk">Clutch</h2>
+    <div class="modes desk">
       <button type="button" data-mode="auto" aria-pressed="true"><b>Auto clutch</b><span>You change gear, the clutch is automatic. Start here.</span></button>
       <button type="button" data-mode="manual" aria-pressed="false"><b>Full manual</b><span>You work the clutch too. Tap it to hold the bite point.</span></button>
     </div>
-    <h2>Keys</h2>
-    <div class="modes">
+    <h2 class="desk">Keys</h2>
+    <div class="modes desk">
       <button type="button" data-layout="standard" aria-pressed="true"><b>Standard</b><span>W / S go and stop, A / D steer, Shift clutch.</span></button>
       <button type="button" data-layout="pedals" aria-pressed="false"><b>Pedals on arrows</b><span>← clutch, ↓ brake, → accelerator, like real pedals.</span></button>
     </div>
-    <dl class="keys" data-keys="standard">
+    <dl class="keys desk" data-keys="standard">
       <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Go · brake</dd>
       <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Steer</dd>
       <dt><kbd>Shift</kbd></dt><dd>Clutch</dd>
@@ -90,7 +115,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
       <dt><kbd>C</kbd> <kbd>M</kbd> <kbd>P</kbd></dt><dd>Clutch mode · sound · pause</dd>
       <dt><kbd>−</kbd> <kbd>=</kbd></dt><dd>Volume down · up</dd>
     </dl>
-    <dl class="keys" data-keys="pedals" hidden>
+    <dl class="keys desk" data-keys="pedals" hidden>
       <dt><kbd>←</kbd> <kbd>↓</kbd> <kbd>→</kbd></dt><dd>Clutch · brake · go</dd>
       <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Steer</dd>
       <dt><kbd>↑</kbd></dt><dd>Handbrake</dd>
@@ -102,10 +127,16 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
       <dt><kbd>C</kbd> <kbd>M</kbd> <kbd>P</kbd></dt><dd>Clutch mode · sound · pause</dd>
       <dt><kbd>−</kbd> <kbd>=</kbd></dt><dd>Volume down · up</dd>
     </dl>
-    <h2>Sound</h2>
-    <label class="vol">Volume <input type="range" min="0" max="100" step="5" value="100" data-volume aria-label="Volume"> <span data-volume-label>100%</span></label>
+    <h2 class="touch-only">Driving side</h2>
+    <div class="modes touch-only">
+      <button type="button" data-side="rhd" aria-pressed="true"><b>Right-hand drive</b><span>As in India and the UK. Gears under your left thumb, pedals under your right.</span></button>
+      <button type="button" data-side="lhd" aria-pressed="false"><b>Left-hand drive</b><span>As in the US and Europe. Gears on the right, pedals on the left.</span></button>
+    </div>
+    <p class="note touch-only">Hold your phone sideways and tilt it like a steering wheel. No tilt? Drag sideways on the road.</p>
+    <h2 class="desk">Sound</h2>
+    <label class="vol desk">Volume <input type="range" min="0" max="100" step="5" value="100" data-volume aria-label="Volume"> <span data-volume-label>100%</span></label>
     <button type="button" class="go" id="go">Start driving</button>
-    <p class="note">Keys not responding? Some laptops can't read three keys at once; try the other layout.</p>
+    <p class="note desk">Keys not responding? Some laptops can't read three keys at once; try the other layout.</p>
   </div>
 </div>
 
@@ -123,6 +154,23 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   <input type="range" min="0" max="100" step="5" value="100" data-volume tabindex="-1" aria-label="Volume">
   <span data-volume-label>100%</span>
 </div>
+
+<div id="touch" hidden>
+  <div class="t-gears">
+    <div class="t-row">
+      <button type="button" data-act="engine">Engine</button><button type="button" data-act="view">View</button><button type="button" data-act="reset">Road</button><button type="button" data-act="pause" aria-label="Pause">II</button>
+    </div>
+    <div class="t-shift">
+      <button type="button" class="t-big" data-act="up" aria-label="Change up">▲</button><button type="button" data-act="n">N</button>
+      <button type="button" class="t-big" data-act="down" aria-label="Change down">▼</button><button type="button" data-act="r">R</button>
+    </div>
+  </div>
+  <div class="t-pedals">
+    <div class="t-pedal" data-pedal="brake"><i></i><b>Brake</b></div>
+    <div class="t-pedal gas" data-pedal="throttle"><i></i><b>Accel</b></div>
+  </div>
+</div>
+<div class="rotate" id="rotate"><b>Turn your phone sideways</b><p>Clutch Run drives in landscape.</p></div>
 
 <div class="toast-card" id="lap" hidden><b>Lap complete</b><p id="lap-text"></p></div>
 
