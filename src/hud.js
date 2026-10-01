@@ -14,9 +14,11 @@ export class Hud {
     this.resize(); this.buildMap();
   }
 
-  resize() {
+  // lay (from main.js): a phone held upright has the road view on top, height sceneH, and the dashboard under it
+  resize(lay) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.w = window.innerWidth; this.h = window.innerHeight;
+    this.portrait = !!(lay && lay.portrait); this.sceneH = lay ? lay.sceneH : this.h;
     this.cv.width = Math.round(this.w * dpr); this.cv.height = Math.round(this.h * dpr);
     this.g.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
@@ -80,8 +82,12 @@ export class Hud {
   round(x, y, w, h, r, fill) { const g = this.g; g.beginPath(); g.roundRect(x, y, w, h, r); g.fillStyle = fill; g.fill(); }
 
   draw(s, dt) {
-    const g = this.g, w = this.w, h = this.h; this.time += dt;
+    const g = this.g, w = this.w, h = this.h, P = this.portrait, top = this.sceneH; this.time += dt;
     g.clearRect(0, 0, w, h);
+    if (P) { // the dashboard strip under the road view
+      g.fillStyle = '#12171c'; g.fillRect(0, top, w, h - top);
+      g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(0, top, w, 1);
+    }
     if (this.flash > 0) {
       const gr = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.max(w, h) * 0.7);
       gr.addColorStop(0, 'rgba(239,93,80,0)'); gr.addColorStop(1, `rgba(239,93,80,${0.55 * this.flash})`);
@@ -89,8 +95,9 @@ export class Hud {
     }
 
     // Instrument cluster
-    const R = clamp(Math.min(w, h) * 0.11, 56, 92), gap = R * 0.3, gw = R * 1.5;
-    const cx = w / 2, cy = h - R - 22;
+    // Upright phones: smaller dials, sitting in the strip above the thumb controls (which take the bottom 222 px)
+    const R = P ? clamp(w * 0.13, 40, 58) : clamp(Math.min(w, h) * 0.11, 56, 92), gap = R * 0.3, gw = R * 1.5;
+    const cx = w / 2, cy = P ? Math.max(top + R + 16, h - 222 - R - 10) : h - R - 22;
     const pw = 4 * R + gw + gap * 4, ph = 2 * R + 20;
     this.round(cx - pw / 2, cy - R - 10, pw, ph, 16, C.panel);
     const tx = cx - gw / 2 - gap - R, sx = cx + gw / 2 + gap + R;
@@ -132,37 +139,52 @@ export class Hud {
       [s.auto ? 'Auto clutch  ·  C for manual' : `Manual clutch (${s.clutchKey})  ·  C for auto`, C.dim, `13px ${MONO}`],
     ];
     if (s.touch) lines.pop(); // phones have no C key, and the clutch is automatic there
-    this.round(12, 12, 290, 24 + lines.length * 22, 12, C.panel);
-    g.textAlign = 'left';
-    lines.forEach(([t, col, f], i) => { g.fillStyle = col; g.font = f; g.fillText(t, 26, 34 + i * 22); });
+    const ms = P ? 96 : this.map.size; // minimap size on screen
+    if (P) {
+      // Upright phones: the same facts in three short lines, beside a smaller minimap
+      lines.splice(0, lines.length,
+        [s.section, C.fg, `600 16px ${DISP}`],
+        [`Lap ${s.lap} · ${fmtTime(s.lapTime)}${s.best ? ' · best ' + fmtTime(s.best) : ''}`, C.fg, `12px ${MONO}`],
+        [`Green ${s.green}%  Crash ${s.crashes}  Stall ${s.stalls}`, s.green >= 75 ? C.good : s.green >= 50 ? C.warn : C.bad, `11.5px ${MONO}`]);
+      this.round(10, 10, w - ms - 28, 20 + lines.length * 19, 12, C.panel);
+      g.textAlign = 'left';
+      lines.forEach(([t, col, f], i) => { g.fillStyle = col; g.font = f; g.fillText(t, 20, 28 + i * 19); });
+    } else {
+      this.round(12, 12, 290, 24 + lines.length * 22, 12, C.panel);
+      g.textAlign = 'left';
+      lines.forEach(([t, col, f], i) => { g.fillStyle = col; g.font = f; g.fillText(t, 26, 34 + i * 22); });
+    }
 
-    // Top-right: minimap
-    const m = this.map, mx = w - m.size - 12, my = 12;
-    this.round(mx, my, m.size, m.size, 12, C.panel);
-    g.drawImage(this.mapImg, mx, my, m.size, m.size);
-    for (const t of s.traffic) { g.fillStyle = t.lane > 0 ? '#8fb3d9' : '#c9a0dc'; g.beginPath(); g.arc(mx + m.tx(t.x), my + m.tz(t.z), 2.2, 0, 7); g.fill(); }
-    g.save(); g.translate(mx + m.tx(s.x), my + m.tz(s.z)); g.rotate(-s.yaw + Math.PI);
+    // Top-right: minimap (drawn at 150 px, scaled down on upright phones)
+    const m = this.map, k = ms / m.size, mx = w - ms - (P ? 10 : 12), my = P ? 10 : 12;
+    this.round(mx, my, ms, ms, 12, C.panel);
+    g.drawImage(this.mapImg, mx, my, ms, ms);
+    for (const t of s.traffic) { g.fillStyle = t.lane > 0 ? '#8fb3d9' : '#c9a0dc'; g.beginPath(); g.arc(mx + m.tx(t.x) * k, my + m.tz(t.z) * k, 2.2 * Math.max(k, 0.8), 0, 7); g.fill(); }
+    g.save(); g.translate(mx + m.tx(s.x) * k, my + m.tz(s.z) * k); g.rotate(-s.yaw + Math.PI); if (P) g.scale(0.8, 0.8);
     g.fillStyle = C.accent; g.beginPath(); g.moveTo(0, -7); g.lineTo(5, 5); g.lineTo(-5, 5); g.closePath(); g.fill();
     g.restore();
 
     // Hint banner
+    // Hint banner: top centre, or on upright phones along the bottom of the road view
     if (s.hint) {
-      g.font = `600 19px ${DISP}`; g.textAlign = 'center';
-      const tw = g.measureText(s.hint.text).width + 36, col = C[s.hint.tone] || C.fg;
+      g.font = `600 ${P ? 15 : 19}px ${DISP}`; g.textAlign = 'center';
+      const tw = Math.min(w - 16, g.measureText(s.hint.text).width + (P ? 24 : 36)), col = C[s.hint.tone] || C.fg;
+      const bh = P ? 30 : 36, y0 = P ? top - bh - 10 : 18;
       const blink = s.hint.tone === 'bad' ? 0.75 + 0.25 * Math.sin(this.time * 8) : 1;
       g.globalAlpha = blink;
-      this.round(cx - tw / 2, 18, tw, 36, 18, C.panel);
-      g.strokeStyle = col; g.lineWidth = 1.5; g.beginPath(); g.roundRect(cx - tw / 2, 18, tw, 36, 18); g.stroke();
-      g.fillStyle = col; g.fillText(s.hint.text, cx, 37); g.globalAlpha = 1;
+      this.round(cx - tw / 2, y0, tw, bh, bh / 2, C.panel);
+      g.strokeStyle = col; g.lineWidth = 1.5; g.beginPath(); g.roundRect(cx - tw / 2, y0, tw, bh, bh / 2); g.stroke();
+      g.fillStyle = col; g.fillText(s.hint.text, cx, y0 + bh / 2 + 1, w - 28); g.globalAlpha = 1;
     }
 
     // Toasts
-    g.font = `700 30px ${DISP}`; g.textAlign = 'center';
+    const ts = P ? 21 : 30, ty = P ? top * 0.38 : h * 0.3, tmax = w - 24;
+    g.font = `700 ${ts}px ${DISP}`; g.textAlign = 'center';
     this.toasts.forEach((t, i) => {
       t.t -= dt;
       g.globalAlpha = clamp(t.t / 0.5, 0, 1);
-      g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillText(t.text, cx + 2, h * 0.3 + i * 38 + 2);
-      g.fillStyle = C[t.tone] || C.fg; g.fillText(t.text, cx, h * 0.3 + i * 38);
+      g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillText(t.text, cx + 2, ty + i * (ts + 8) + 2, tmax);
+      g.fillStyle = C[t.tone] || C.fg; g.fillText(t.text, cx, ty + i * (ts + 8), tmax);
     });
     g.globalAlpha = 1;
     this.toasts = this.toasts.filter(t => t.t > 0);

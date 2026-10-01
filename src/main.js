@@ -9,6 +9,13 @@ import { TouchControls } from './touch.js';
 // Phones and tablets get on-screen pedals, gear buttons and tilt steering.
 const TOUCH = document.documentElement.classList.contains('touch'); // set by the first script in index.html
 
+// A phone held upright stacks like a car: the road view on top, then the dashboard, then the controls.
+const DASH_PORTRAIT = 350; // px under the road view for the dials and the thumb controls
+function screenLayout() {
+  const w = window.innerWidth, h = window.innerHeight, portrait = TOUCH && h > w;
+  return { w, h, portrait, sceneH: portrait ? Math.round(Math.max(h * 0.45, h - DASH_PORTRAIT)) : h };
+}
+
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ORD = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th' };
 const gearName = g => g === -1 ? 'R' : g === 0 ? 'N' : String(g);
@@ -25,6 +32,10 @@ const HORIZON = 0xcfdde6;
 scene.background = new THREE.Color(HORIZON);
 scene.fog = new THREE.Fog(HORIZON, 180, 950);
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.05, 2000);
+// The fov values below are for a wide screen. A narrower one keeps the width a 1.3:1 screen sees,
+// so a phone held upright still shows the sides of the road instead of a slot down the middle.
+const FOV_REF = 1.3;
+const fitFov = v => camera.aspect >= FOV_REF ? v : 2 * Math.atan(Math.tan(v * Math.PI / 360) * FOV_REF / camera.aspect) * 180 / Math.PI;
 
 scene.add(new THREE.HemisphereLight(0xe3efff, 0x55623a, 1.15));
 const sun = new THREE.DirectionalLight(0xfff0da, 2.3); sun.position.set(-400, 520, 260); scene.add(sun);
@@ -133,7 +144,7 @@ window.addEventListener('keydown', e => {
   else if (c === 'KeyC') { dt.autoClutch = !dt.autoClutch; hud.toast(dt.autoClutch ? 'Auto clutch on' : `Manual clutch: hold ${K.clutchName} to press it`); }
   else if (c === 'KeyV') { state.cam = (state.cam + 1) % CAMS.length; hud.toast(CAMS[state.cam]); }
   else if (c === 'KeyT') { const n = world.nearest(player.x, player.z, 6); spawnAt(n ? n.i * world.ds : 0); dt.setGear(0); hud.toast('Back on the road'); }
-  else if (c === 'KeyM') { sound.setMuted(!sound.muted); showMuted(); hud.toast(sound.muted ? 'Sound off' : 'Sound on'); }
+  else if (c === 'KeyM') { setMuted(!sound.muted); hud.toast(sound.muted ? 'Sound off' : 'Sound on'); }
   else if (c === 'Minus' || c === 'Equal') { setVolume(Math.round(sound.volume * 10 + (c === 'Equal' ? 1 : -1)) / 10); hud.toast(`Volume ${Math.round(sound.volume * 100)}%`); }
 });
 window.addEventListener('keyup', e => keys.delete(e.code));
@@ -349,7 +360,7 @@ function update(h) {
     head.setFromAxisAngle(UP, player.head);
     camera.quaternion.copy(gp.quaternion).multiply(flip).multiply(head);
     if (state.shake > 0) { camera.position.x += (Math.random() - 0.5) * state.shake * 0.3; camera.position.y += (Math.random() - 0.5) * state.shake * 0.3; state.shake = Math.max(0, state.shake - h * 1.2); }
-    camera.fov = 70; camera.updateProjectionMatrix();
+    camera.fov = fitFov(70); camera.updateProjectionMatrix();
     camInit = false;
   } else {
   if (cam === 0) {
@@ -366,7 +377,7 @@ function update(h) {
   camera.position.copy(camPos);
   if (state.shake > 0) { camera.position.x += (Math.random() - 0.5) * state.shake; camera.position.y += (Math.random() - 0.5) * state.shake; state.shake = Math.max(0, state.shake - h * 1.2); }
   camera.lookAt(camLook);
-  camera.fov = 60 + Math.min(12, sp * 0.3); camera.updateProjectionMatrix();
+  camera.fov = fitFov(60 + Math.min(12, sp * 0.3)); camera.updateProjectionMatrix();
   }
 
   // HUD
@@ -418,7 +429,7 @@ let touch = null;
 if (TOUCH) {
   touch = new TouchControls($('touch'), canvas);
   const press = code => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); window.dispatchEvent(new KeyboardEvent('keyup', { code })); };
-  const acts = { up: 'KeyE', down: 'KeyQ', n: 'KeyN', r: 'KeyR', engine: 'KeyI', view: 'KeyV', reset: 'KeyT', pause: 'KeyP' };
+  const acts = { up: 'KeyE', down: 'KeyQ', n: 'KeyN', r: 'KeyR', engine: 'KeyI', view: 'KeyV', reset: 'KeyT', pause: 'KeyP', mute: 'KeyM' };
   for (const [act, code] of Object.entries(acts)) touch.on(act, () => press(code));
   const setSide = side => {
     document.body.classList.toggle('lhd', side === 'lhd');
@@ -441,20 +452,29 @@ function setVolume(v) {
   try { localStorage.setItem('clutchrun-volume', String(sound.volume)); } catch (e) {}
   showMuted();
 }
+// Mute: a button on the start screen, in the game (corner panel, or the phone's button row) and M.
+// Remembered, so someone who muted to play in public stays muted next time.
+function setMuted(m) { sound.setMuted(m); showMuted(); }
 function showMuted() {
-  $('hud-vol').classList.toggle('muted', sound.muted);
-  $('mute').setAttribute('aria-pressed', sound.muted);
-  $('mute').setAttribute('aria-label', sound.muted ? 'Unmute' : 'Mute');
+  document.documentElement.classList.toggle('muted', sound.muted);
+  document.querySelectorAll('#mute, [data-act="mute"]').forEach(b => { b.setAttribute('aria-pressed', sound.muted); b.setAttribute('aria-label', sound.muted ? 'Turn sound on' : 'Mute'); });
+  document.querySelectorAll('[data-mute] span').forEach(x => { x.textContent = sound.muted ? 'Sound off' : 'Sound on'; });
+  try { localStorage.setItem('clutchrun-muted', sound.muted ? '1' : '0'); } catch (e) {}
 }
 document.querySelectorAll('[data-volume]').forEach(s => s.addEventListener('input', () => setVolume(s.value / 100)));
 // The corner panel hands the keyboard back to the game after use, so arrows and Space still drive
 const backToGame = () => { if (state.started) canvas.focus(); };
 $('hud-vol').querySelector('[data-volume]').addEventListener('change', backToGame);
-$('mute').addEventListener('click', () => { sound.setMuted(!sound.muted); showMuted(); backToGame(); });
+$('mute').addEventListener('click', () => { setMuted(!sound.muted); backToGame(); });
+document.querySelectorAll('[data-mute]').forEach(b => b.addEventListener('click', () => setMuted(!sound.muted)));
 {
-  let v = 1;
-  try { const saved = parseFloat(localStorage.getItem('clutchrun-volume')); if (saved >= 0 && saved <= 1) v = saved; } catch (e) {}
+  let v = 1, muted = false;
+  try {
+    const saved = parseFloat(localStorage.getItem('clutchrun-volume')); if (saved >= 0 && saved <= 1) v = saved;
+    muted = localStorage.getItem('clutchrun-muted') === '1';
+  } catch (e) {}
   setVolume(v);
+  setMuted(muted);
 }
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('[data-mode]').forEach(x => x.setAttribute('aria-pressed', x === b));
@@ -462,10 +482,10 @@ document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click'
 }));
 $('go').addEventListener('click', () => {
   if (touch) {
-    // both need this tap: iPhones ask for motion access, Android goes full screen and sideways
+    // both need this tap: iPhones ask for motion access, Android goes full screen
     touch.enableTilt().then(ok => { setTimeout(() => { if (!ok || !touch.tilting) hud.toast('No tilt here: drag sideways on the road to steer', 'warn'); }, 1500); });
     const el = document.documentElement;
-    try { if (el.requestFullscreen) el.requestFullscreen().then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {}); } catch (e) {}
+    try { if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); } catch (e) {}
     dt.autoClutch = true; // one thumb can't hold the clutch and the accelerator at once
     $('touch').hidden = false;
   }
@@ -474,11 +494,14 @@ $('go').addEventListener('click', () => {
   canvas.focus();
 });
 $('resume').addEventListener('click', () => setPaused(false));
-window.addEventListener('resize', () => {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
-  hud.resize();
-});
+function fitScreen() {
+  const lay = screenLayout();
+  renderer.setSize(lay.w, lay.sceneH);
+  camera.aspect = lay.w / lay.sceneH; camera.updateProjectionMatrix();
+  hud.resize(lay);
+}
+window.addEventListener('resize', fitScreen);
+fitScreen();
 
 spawnAt(6);
 requestAnimationFrame(frame);

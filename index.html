@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script>
-// Phones are spotted before anything is drawn, so the keyboard instructions never show on them and the
-// rotate prompt appears at once, not after the 3D world has loaded. ?touch forces this on a computer.
+// Phones are spotted before anything is drawn, so the keyboard instructions never show on them, not
+// even while the 3D world is loading. ?touch forces this on a computer.
 try { if (matchMedia('(pointer: coarse)').matches || matchMedia('(hover: none)').matches || /[?&]touch\b/.test(location.search)) document.documentElement.classList.add('touch'); } catch (e) {}
 </script>
 <style>
@@ -53,31 +53,36 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .hud-vol span{min-width:4ch;text-align:right;color:var(--muted)}
 .hud-vol button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--fg);cursor:pointer}
 .hud-vol button:hover{background:rgba(255,255,255,.08)}
-.hud-vol .slash{display:none}
-.hud-vol.muted .slash{display:inline}
-.hud-vol.muted .waves{display:none}
-.hud-vol.muted input,.hud-vol.muted span{opacity:.45}
+/* every speaker icon shows waves, or a cross when muted (html.muted) */
+.slash{display:none}
+html.muted .slash{display:inline}
+html.muted .waves{display:none}
+html.muted .hud-vol input,html.muted .hud-vol span,html.muted .vol input{opacity:.45}
+.sound-row{display:flex;align-items:center;gap:14px}
+.sound-row .vol{flex:1}
+.snd{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--fg);font:600 15px var(--disp);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;white-space:nowrap}
+html.muted .snd{border-color:var(--accent);color:var(--accent)}
 /* phones: touch controls, mirrored for left-hand drive */
 html:not(.touch) .touch-only, .touch .desk, .touch .hud-vol{display:none!important}
 .touch #scene{touch-action:none}
 #touch{position:fixed;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 #touch>*{position:absolute;bottom:max(14px,env(safe-area-inset-bottom));pointer-events:auto;touch-action:none}
-.t-gears{left:max(14px,env(safe-area-inset-left));display:grid;gap:8px}
+.t-gears{left:max(14px,env(safe-area-inset-left))}
 .t-pedals{right:max(14px,env(safe-area-inset-right));display:flex;gap:10px;align-items:flex-end}
 body.lhd .t-gears{left:auto;right:max(14px,env(safe-area-inset-right))}
 body.lhd .t-pedals{right:auto;left:max(14px,env(safe-area-inset-left))}
-.t-row{display:flex;gap:6px}
 .t-shift{display:grid;grid-template-columns:64px 46px;gap:8px}
-#touch button{height:40px;min-width:44px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:rgba(10,14,19,.78);color:var(--fg);font:600 15px var(--disp);letter-spacing:.04em;text-transform:uppercase}
+#touch button{display:grid;place-items:center;height:40px;min-width:44px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:rgba(10,14,19,.78);color:var(--fg);font:600 15px var(--disp);letter-spacing:.04em;text-transform:uppercase}
 #touch button:active{background:rgba(242,140,43,.35)}
 #touch .t-big{height:58px;font-size:24px}
 .t-pedal{position:relative;width:58px;height:150px;border-radius:12px;border:1px solid var(--line);background:rgba(10,14,19,.78);overflow:hidden}
 .t-pedal i{position:absolute;inset:auto 0 0;height:calc(var(--press,0)*100%);background:var(--bad);opacity:.55}
 .t-pedal.gas i{background:var(--good)}
 .t-pedal b{position:absolute;inset:auto 0 8px;text-align:center;font:600 13px var(--disp);text-transform:uppercase;letter-spacing:.06em}
-.rotate{display:none}
-@media (orientation:portrait){.touch .rotate{position:fixed;inset:0;z-index:5;display:grid;place-content:center;gap:6px;padding:24px;text-align:center;background:var(--bg)}
-  .rotate b{font:700 30px var(--disp);text-transform:uppercase}.rotate p{margin:0;color:var(--muted);font-size:14px}}
+/* the Engine / View / Road / pause row: above the gears when sideways, centred above both thumbs when upright */
+.t-util{display:flex;gap:6px;left:max(14px,env(safe-area-inset-left));bottom:calc(max(14px,env(safe-area-inset-bottom)) + 140px)!important}
+body.lhd .t-util{left:auto;right:max(14px,env(safe-area-inset-right))}
+@media (orientation:portrait){.t-util,body.lhd .t-util{left:50%;right:auto;transform:translateX(-50%);bottom:calc(max(14px,env(safe-area-inset-bottom)) + 160px)!important}}
 .toast-card{position:fixed;left:50%;top:22%;transform:translateX(-50%);width:min(520px,calc(100% - 32px));background:var(--panel);border:1px solid var(--good);border-radius:14px;padding:18px 22px;text-align:center}
 .toast-card b{display:block;font:700 30px var(--disp);text-transform:uppercase;color:var(--good)}
 .toast-card p{margin:6px 0 0;font-size:14px;line-height:1.5}
@@ -137,9 +142,12 @@ body.lhd .t-pedals{right:auto;left:max(14px,env(safe-area-inset-left))}
       <button type="button" data-side="rhd" aria-pressed="true"><b>Right-hand drive</b><span>As in India and the UK. Gears under your left thumb, pedals under your right.</span></button>
       <button type="button" data-side="lhd" aria-pressed="false"><b>Left-hand drive</b><span>As in the US and Europe. Gears on the right, pedals on the left.</span></button>
     </div>
-    <p class="note touch-only">Hold your phone sideways and tilt it like a steering wheel. No tilt? Drag sideways on the road.</p>
-    <h2 class="desk">Sound</h2>
-    <label class="vol desk">Volume <input type="range" min="0" max="100" step="5" value="100" data-volume aria-label="Volume"> <span data-volume-label>100%</span></label>
+    <p class="note touch-only">Tilt your phone like a steering wheel to steer, held upright or sideways. No tilt? Drag sideways on the road.</p>
+    <h2>Sound</h2>
+    <div class="sound-row">
+      <button type="button" class="snd" data-mute><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path class="waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/><path class="slash" d="m16 9 6 6m0-6-6 6"/></svg><span>Sound on</span></button>
+      <label class="vol desk">Volume <input type="range" min="0" max="100" step="5" value="100" data-volume aria-label="Volume"> <span data-volume-label>100%</span></label>
+    </div>
     <button type="button" class="go" id="go">Start driving</button>
     <p class="note desk">Keys not responding? Some laptops can't read three keys at once; try the other layout.</p>
   </div>
@@ -161,10 +169,10 @@ body.lhd .t-pedals{right:auto;left:max(14px,env(safe-area-inset-left))}
 </div>
 
 <div id="touch" hidden>
+  <div class="t-util">
+    <button type="button" data-act="engine">Engine</button><button type="button" data-act="view">View</button><button type="button" data-act="reset">Road</button><button type="button" data-act="pause" aria-label="Pause">II</button><button type="button" data-act="mute" aria-label="Mute"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path class="waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/><path class="slash" d="m16 9 6 6m0-6-6 6"/></svg></button>
+  </div>
   <div class="t-gears">
-    <div class="t-row">
-      <button type="button" data-act="engine">Engine</button><button type="button" data-act="view">View</button><button type="button" data-act="reset">Road</button><button type="button" data-act="pause" aria-label="Pause">II</button>
-    </div>
     <div class="t-shift">
       <button type="button" class="t-big" data-act="up" aria-label="Change up">▲</button><button type="button" data-act="n">N</button>
       <button type="button" class="t-big" data-act="down" aria-label="Change down">▼</button><button type="button" data-act="r">R</button>
@@ -175,7 +183,6 @@ body.lhd .t-pedals{right:auto;left:max(14px,env(safe-area-inset-left))}
     <div class="t-pedal gas" data-pedal="throttle"><i></i><b>Accel</b></div>
   </div>
 </div>
-<div class="rotate" id="rotate"><b>Turn your phone sideways</b><p>Clutch Run drives in landscape.</p></div>
 
 <div class="toast-card" id="lap" hidden><b>Lap complete</b><p id="lap-text"></p></div>
 

@@ -21,9 +21,11 @@ Pick a layout on the start screen. **Standard** is below. **Pedals on arrows** p
 | C / M / P | Clutch mode / sound / pause |
 | − / = | Volume down / up (also a slider and mute button under the minimap, and on the start and pause screens) |
 
+To play in public, mute with the Sound button on the start screen, the speaker button in the game, or M. The game remembers it.
+
 ## On a phone
 
-Hold the phone sideways. Tilt it like a steering wheel to steer, or drag sideways on the road if tilt isn't available. The accelerator and brake are analog: press higher up a pedal to press harder. Gears (▲ ▼ N R) and the Engine, View, Road and pause buttons sit under the other thumb. The start screen asks for right-hand drive (gears on the left, as in India) or left-hand drive (mirrored). The clutch is automatic on phones. Add `?touch` to the URL to try the phone controls on a computer.
+Hold the phone upright or sideways: upright, the road view sits on top with the dashboard and controls under it. Tilt the phone like a steering wheel to steer, or drag sideways on the road if tilt isn't available. The accelerator and brake are analog: press higher up a pedal to press harder. Gears (▲ ▼ N R) sit under the other thumb, with Engine, View, Road, pause and mute buttons above. The start screen asks for right-hand drive (gears on the left, as in India) or left-hand drive (mirrored). The clutch is automatic on phones. Add `?touch` to the URL to try the phone controls on a computer.
 
 ## How it works
 
