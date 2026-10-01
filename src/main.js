@@ -126,18 +126,22 @@ function toastOnce(key, text, tone, gap = 4) {
   state.lastToast[key] = now; hud.toast(text, tone);
 }
 
+// Phones buzz with gear changes (Android; iPhones don't let web pages vibrate)
+const buzz = pattern => { if (TOUCH && navigator.vibrate) try { navigator.vibrate(pattern); } catch (e) {} };
+const grind = () => { sound.grind(); state.grinds++; buzz([70, 40, 70]); }; // a refused gear: a rough double buzz
+
 function requestGear(g) {
   if (!state.started || g === dt.gear) return;
   if (!dt.autoClutch && dt.pedal < 0.8) {
-    sound.grind(); state.grinds++; hud.toast(`Press the clutch (${K.clutchName}) first`, 'warn'); return;
+    grind(); hud.toast(`Press the clutch (${K.clutchName}) first`, 'warn'); return;
   }
-  if (g === -1 && dt.v > 0.8) { sound.grind(); state.grinds++; hud.toast('Stop before selecting reverse', 'warn'); return; }
-  if (g > 0 && dt.v < -0.8) { sound.grind(); state.grinds++; hud.toast('Stop before selecting a forward gear', 'warn'); return; }
+  if (g === -1 && dt.v > 0.8) { grind(); hud.toast('Stop before selecting reverse', 'warn'); return; }
+  if (g > 0 && dt.v < -0.8) { grind(); hud.toast('Stop before selecting a forward gear', 'warn'); return; }
   if (g > 0 && dt.wheelRpmFor(g) > 6900) {
-    sound.grind(); state.grinds++;
+    grind();
     hud.toast(`Too fast for ${ORD[g]}: the engine would over-rev`, 'bad'); return;
   }
-  dt.setGear(g); sound.shift();
+  dt.setGear(g); sound.shift(); buzz(g === 0 ? 15 : 25); // a tick as the lever drops into its gate
 }
 
 const CODES = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight', 'KeyH'];
