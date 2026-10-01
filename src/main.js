@@ -129,7 +129,7 @@ window.addEventListener('keydown', e => {
   else if (c === 'KeyC') { dt.autoClutch = !dt.autoClutch; hud.toast(dt.autoClutch ? 'Auto clutch on' : `Manual clutch: hold ${K.clutchName} to press it`); }
   else if (c === 'KeyV') { state.cam = (state.cam + 1) % CAMS.length; hud.toast(CAMS[state.cam]); }
   else if (c === 'KeyT') { const n = world.nearest(player.x, player.z, 6); spawnAt(n ? n.i * world.ds : 0); dt.setGear(0); hud.toast('Back on the road'); }
-  else if (c === 'KeyM') { sound.setMuted(!sound.muted); hud.toast(sound.muted ? 'Sound off' : 'Sound on'); }
+  else if (c === 'KeyM') { sound.setMuted(!sound.muted); showMuted(); hud.toast(sound.muted ? 'Sound off' : 'Sound on'); }
   else if (c === 'Minus' || c === 'Equal') { setVolume(Math.round(sound.volume * 10 + (c === 'Equal' ? 1 : -1)) / 10); hud.toast(`Volume ${Math.round(sound.volume * 100)}%`); }
 });
 window.addEventListener('keyup', e => keys.delete(e.code));
@@ -387,7 +387,7 @@ function frame(t) {
 /* ---------- Menus ---------- */
 const $ = id => document.getElementById(id);
 function setPaused(p) {
-  state.paused = p; $('pause').hidden = !p;
+  state.paused = p; $('pause').hidden = !p; $('hud-vol').hidden = p; // the pause screen has its own slider
   if (sound.ctx) p ? sound.ctx.suspend() : sound.ctx.resume();
 }
 function showLap(t) {
@@ -403,7 +403,8 @@ function setLayout(name) {
 }
 document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.layout)));
 setLayout(layoutName);
-// Volume: sliders on the start and pause screens, - and = while driving, remembered in the browser
+// Volume: sliders on the start and pause screens and in the game's corner panel, - and = while
+// driving, remembered in the browser
 function setVolume(v) {
   sound.setVolume(v);
   if (sound.muted && sound.volume > 0) sound.setMuted(false);
@@ -411,8 +412,18 @@ function setVolume(v) {
   document.querySelectorAll('[data-volume]').forEach(x => { x.value = pct; });
   document.querySelectorAll('[data-volume-label]').forEach(x => { x.textContent = `${pct}%`; });
   try { localStorage.setItem('clutchrun-volume', String(sound.volume)); } catch (e) {}
+  showMuted();
+}
+function showMuted() {
+  $('hud-vol').classList.toggle('muted', sound.muted);
+  $('mute').setAttribute('aria-pressed', sound.muted);
+  $('mute').setAttribute('aria-label', sound.muted ? 'Unmute' : 'Mute');
 }
 document.querySelectorAll('[data-volume]').forEach(s => s.addEventListener('input', () => setVolume(s.value / 100)));
+// The corner panel hands the keyboard back to the game after use, so arrows and Space still drive
+const backToGame = () => { if (state.started) canvas.focus(); };
+$('hud-vol').querySelector('[data-volume]').addEventListener('change', backToGame);
+$('mute').addEventListener('click', () => { sound.setMuted(!sound.muted); showMuted(); backToGame(); });
 {
   let v = 1;
   try { const saved = parseFloat(localStorage.getItem('clutchrun-volume')); if (saved >= 0 && saved <= 1) v = saved; } catch (e) {}
@@ -423,7 +434,7 @@ document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click'
   dt.autoClutch = b.dataset.mode === 'auto';
 }));
 $('go').addEventListener('click', () => {
-  sound.init(); state.started = true; $('menu').hidden = true;
+  sound.init(); state.started = true; $('menu').hidden = true; $('hud-vol').hidden = false;
   hud.toast(`Press 1 for first gear, then ${K.goName} to go`, 'fg');
   canvas.focus();
 });

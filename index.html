@@ -42,6 +42,16 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .vol{display:flex;align-items:center;gap:12px;font-size:13px}
 .vol input{flex:1;accent-color:var(--accent)}
 .vol span{min-width:4ch;text-align:right;color:var(--muted)}
+/* in-game volume panel, under the minimap */
+.hud-vol{position:fixed;top:170px;right:12px;width:150px;display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;background:rgba(10,14,19,.78);border-radius:12px;font-size:12px}
+.hud-vol input{flex:1;min-width:0;accent-color:var(--accent)}
+.hud-vol span{min-width:4ch;text-align:right;color:var(--muted)}
+.hud-vol button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--fg);cursor:pointer}
+.hud-vol button:hover{background:rgba(255,255,255,.08)}
+.hud-vol .slash{display:none}
+.hud-vol.muted .slash{display:inline}
+.hud-vol.muted .waves{display:none}
+.hud-vol.muted input,.hud-vol.muted span{opacity:.45}
 .toast-card{position:fixed;left:50%;top:22%;transform:translateX(-50%);width:min(520px,calc(100% - 32px));background:var(--panel);border:1px solid var(--good);border-radius:14px;padding:18px 22px;text-align:center}
 .toast-card b{display:block;font:700 30px var(--disp);text-transform:uppercase;color:var(--good)}
 .toast-card p{margin:6px 0 0;font-size:14px;line-height:1.5}
@@ -106,6 +116,12 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
     <label class="vol">Volume <input type="range" min="0" max="100" step="5" value="100" data-volume aria-label="Volume"> <span data-volume-label>100%</span></label>
     <button type="button" class="go" id="resume">Resume</button>
   </div>
+</div>
+
+<div class="hud-vol" id="hud-vol" hidden>
+  <button type="button" id="mute" tabindex="-1" aria-label="Mute" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path class="waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/><path class="slash" d="m16 9 6 6m0-6-6 6"/></svg></button>
+  <input type="range" min="0" max="100" step="5" value="100" data-volume tabindex="-1" aria-label="Volume">
+  <span data-volume-label>100%</span>
 </div>
 
 <div class="toast-card" id="lap" hidden><b>Lap complete</b><p id="lap-text"></p></div>

@@ -19,7 +19,7 @@ Pick a layout on the start screen. **Standard** is below. **Pedals on arrows** p
 | I | Switch the engine on or off (restarts it after a stall) |
 | H / V / T | Horn / view (behind the car, driver's seat, bonnet) / back to the road |
 | C / M / P | Clutch mode / sound / pause |
-| − / = | Volume down / up (also a slider on the start and pause screens) |
+| − / = | Volume down / up (also a slider and mute button under the minimap, and on the start and pause screens) |
 
 ## How it works
 
