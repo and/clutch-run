@@ -316,7 +316,7 @@ function update(h) {
   const ramp = (cur, tgt, up, dn) => cur + clamp(tgt - cur, -dn * h, up * h);
   state.throttle = ramp(state.throttle, Math.max(down(...K.throttle) ? 1 : 0, touch ? Math.max(touch.throttle, touch.lift) : 0), 3.5, 6);
   if (state.automatic) autoGears(h);
-  state.brake = ramp(state.brake, Math.max(down(...K.brake) ? 1 : 0, touch ? touch.brake : 0), 4, 8);
+  state.brake = ramp(state.brake, Math.max(down(...K.brake) ? 1 : 0, touch ? Math.max(touch.brake, touch.tiltBrake) : 0), 4, 8);
   state.handbrake = down(...K.handbrake) || (state.automatic && state.range === 'P') ? 1 : 0; // P holds the car
   // Clutch pedal. Holding the key pushes it down (gently for the first moment, so a tap nudges it).
   // Letting go lets it rise by itself: quickly to the bite point, slowly through it, quickly after,
@@ -509,6 +509,7 @@ if (TOUCH) {
     const g = r === 'R' ? -1 : r === 'D' ? driveGear() : 0;
     requestGear(g); if (dt.gear !== g) return;
     state.range = r; state.shiftWait = 0;
+    if (r === 'D' || r === 'R') { touch.calibrate(); toastOnce('tilt', 'Tilt back to go, forward to brake', 'fg', 60); } // the way it's held now is rest
   };
   for (const r of 'PRND') touch.on('prnd-' + r, () => selectRange(r));
   const setSide = side => {
@@ -599,10 +600,11 @@ $('go').addEventListener('click', () => {
     const el = document.documentElement;
     try { if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); } catch (e) {}
     dt.autoClutch = true; // one thumb can't hold the clutch and the accelerator at once
+    if (state.automatic) { state.range = 'D'; touch.calibrate(); state.lastToast.tilt = performance.now() / 1000; } // in D from the start: ready to drive at once
     $('touch').hidden = false;
   }
   sound.init(); state.started = true; $('menu').hidden = true; $('hud-vol').hidden = false;
-  hud.toast(state.automatic ? 'Tap D, then lift the phone to go' : touch ? 'Push the lever up into 1st, then press Accel' : `Press 1 for first gear, then ${K.goName} to go`, 'fg');
+  hud.toast(state.automatic ? 'Tilt back to go, forward to brake' : touch ? 'Push the lever up into 1st, then press Accel' : `Press 1 for first gear, then ${K.goName} to go`, 'fg');
   canvas.focus();
 });
 $('resume').addEventListener('click', () => setPaused(false));

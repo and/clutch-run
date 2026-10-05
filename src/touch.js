@@ -4,14 +4,16 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // keep receiving a finger's moves after it slides off the control it started on
 const capture = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch (err) {} };
 const FULL_TILT = 32, DEAD_ZONE = 3; // degrees of phone rotation for full lock, and the slack around straight
-// Automatic mode: the phone flat is foot off the accelerator; lifting its top edge presses it, fully by this angle
-const LIFT_START = 8, LIFT_FULL = 55;
+// Automatic mode: the angle the phone is held at when D is chosen is the rest (35 degrees, about how
+// people hold a phone, until there is a reading). Within COAST of it nothing is pressed; tilting the top
+// edge back presses the accelerator, tipping it forward the brake, each fully FULL degrees from rest.
+const REST = 35, COAST = 5, FULL = 25;
 
 export class TouchControls {
   constructor(root, scene) {
     this.throttle = 0; this.brake = 0;
     this.tilt = 0; this.tiltAt = 0; this.sign = 0;
-    this.automatic = false; this.liftRaw = 0; // automatic mode: steer by rolling the phone, accelerate by lifting it
+    this.automatic = false; this.liftDeg = null; this.rest = REST; this.restPending = false; // automatic mode: steer by rolling the phone, accelerate by lifting it
     this.drag = null; this.handlers = {};
     root.querySelectorAll('[data-pedal]').forEach(el => this.pedal(el));
     root.querySelectorAll('[data-gate]').forEach(el => this.gate(el));
@@ -122,7 +124,8 @@ export class TouchControls {
       const gm = Math.hypot(sx, sy, g.z || 0) || 9.81;
       deg = Math.asin(clamp(sx * this.sign / gm, -1, 1)) * 180 / Math.PI;
       const lift = Math.atan2(sy * this.sign, Math.abs(g.z || 0)) * 180 / Math.PI;
-      this.liftRaw += (clamp((lift - LIFT_START) / (LIFT_FULL - LIFT_START), 0, 1) - this.liftRaw) * 0.35;
+      this.liftDeg = this.liftDeg == null ? lift : this.liftDeg + (lift - this.liftDeg) * 0.35;
+      if (this.restPending) { this.restPending = false; this.rest = clamp(lift, 15, 70); } // driving starts in D: the first reading is rest
     }
     const mag = Math.max(0, Math.abs(deg) - DEAD_ZONE) / (FULL_TILT - DEAD_ZONE);
     const raw = -Math.sign(deg) * clamp(mag, 0, 1);
@@ -132,8 +135,20 @@ export class TouchControls {
 
   get tilting() { return performance.now() - this.tiltAt < 500; }
 
-  // Automatic mode's accelerator, 0..1, from how far the phone is lifted
-  get lift() { return this.automatic && this.tilting ? this.liftRaw : 0; }
+  // Take the way the phone is held now as the rest angle (called when D or R is chosen), or, before
+  // there is any reading, the way it is held when the first one comes
+  calibrate() {
+    if (this.automatic && this.tilting && this.liftDeg != null) this.rest = clamp(this.liftDeg, 15, 70);
+    else this.restPending = true;
+  }
+
+  // Automatic mode's pedals, 0..1, from how far the phone is tilted away from its rest angle
+  tiltFrom(dir) {
+    if (!this.automatic || !this.tilting || this.liftDeg == null) return 0;
+    return clamp((dir * (this.liftDeg - this.rest) - COAST) / (FULL - COAST), 0, 1);
+  }
+  get lift() { return this.tiltFrom(1); }
+  get tiltBrake() { return this.tiltFrom(-1); }
 
   // -1 full left .. +1 full right
   get steer() {
