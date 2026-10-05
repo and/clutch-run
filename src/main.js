@@ -11,7 +11,7 @@ import { TouchControls } from './touch.js';
 // Phones and tablets get on-screen pedals, gear buttons and tilt steering.
 // The release, shown on the start screen so it's clear which one a browser is running.
 // Bump with every release: the count of commits once this one is made, and its date.
-const VERSION = 19, RELEASED = '5 Oct 2026';
+const VERSION = 20, RELEASED = '5 Oct 2026';
 const TOUCH = document.documentElement.classList.contains('touch'); // set by the first script in index.html
 
 // A phone held upright stacks like a car: the road view on top, then the dashboard, then the controls.
@@ -529,6 +529,7 @@ if (TOUCH) {
   const setAutomatic = on => {
     state.automatic = touch.automatic = on;
     document.body.classList.toggle('automatic', on);
+    $('tagline').textContent = on ? 'Drive an automatic. Tilt the phone to go.' : 'Drive a manual car. Keep the revs in the green.';
     document.querySelectorAll('[data-automatic]').forEach(x => x.setAttribute('aria-pressed', (x.dataset.automatic === '1') === on));
     try { localStorage.setItem('clutchrun-automatic', on ? '1' : '0'); } catch (e) {}
   };
