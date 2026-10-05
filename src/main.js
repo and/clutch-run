@@ -11,7 +11,7 @@ import { TouchControls } from './touch.js';
 // Phones and tablets get on-screen pedals, gear buttons and tilt steering.
 // The release, shown on the start screen so it's clear which one a browser is running.
 // Bump with every release: the count of commits once this one is made, and its date.
-const VERSION = 20, RELEASED = '5 Oct 2026';
+const VERSION = 21, RELEASED = '5 Oct 2026';
 const TOUCH = document.documentElement.classList.contains('touch'); // set by the first script in index.html
 
 // A phone held upright stacks like a car: the road view on top, then the dashboard, then the controls.
@@ -448,7 +448,7 @@ function update(h) {
   const section = !n || n.dist > ROAD_HALF + 1 ? 'Off road · grass'
     : `${here.surf === 'gravel' ? 'Gravel road' : 'Tarmac'}${sinG > 0.035 ? ` · climbing ${Math.round(sinG * 100)}%` : sinG < -0.035 ? ` · downhill ${Math.round(-sinG * 100)}%` : ''}`;
   if (touch) touch.syncGear(dt.gear); // the lever's knob shows the gear the car is really in
-  if (state.automatic && prndShown !== state.range) { prndShown = state.range; prnd.forEach(b => b.setAttribute('aria-pressed', b.dataset.act === 'prnd-' + prndShown)); }
+  if (state.automatic) touch.syncRange(state.range); // the selector's knob shows the range the car is really in
   hud.draw({
     rpm: dt.rpm, kmh: sp * 3.6, gearLabel: state.automatic ? (state.range === 'D' && dt.gear > 0 ? 'D' + dt.gear : state.range) : gearName(dt.gear), on: dt.on || dt.crankT > 0,
     suggest: c.suggest, hint: c.hint,
@@ -460,6 +460,7 @@ function update(h) {
     traffic, x: player.x, z: player.z, yaw: player.yaw, touch: !!touch,
     // sideways on a phone the lever (or in automatic mode the buttons) sits in a top corner: the HUD lays its panels out around it
     lever: touch && !hud.portrait ? (state.automatic ? $('touch').querySelector('.t-util') : touch.gateEl).getBoundingClientRect() : null, lhd: document.body.classList.contains('lhd'), automatic: state.automatic,
+    gateTop: touch && hud.portrait && !state.automatic ? touch.gateEl.getBoundingClientRect().top : null, // upright: hints go above the lever
   }, h);
 }
 
@@ -495,8 +496,6 @@ document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('clic
 setLayout(layoutName);
 // Touch controls. The driving side puts the gears under the hand that works the lever in that car.
 let touch = null;
-const prnd = [...$('touch').querySelectorAll('.t-prnd button')];
-let prndShown = null;
 if (TOUCH) {
   touch = new TouchControls($('touch'), canvas);
   const press = code => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); window.dispatchEvent(new KeyboardEvent('keyup', { code })); };
@@ -515,7 +514,8 @@ if (TOUCH) {
     state.range = r; state.shiftWait = 0;
     if (r === 'D' || r === 'R') { touch.calibrate(); toastOnce('tilt', 'Tilt back to go, forward to brake', 'fg', 60); } // the way it's held now is rest
   };
-  for (const r of 'PRND') touch.on('prnd-' + r, () => selectRange(r));
+  touch.on('range', selectRange); // the selector's knob dropped into a position
+  touch.on('detent', () => buzz(8)); // a small click as the knob passes each position
   const setSide = side => {
     document.body.classList.toggle('lhd', side === 'lhd');
     document.querySelectorAll('[data-side]').forEach(x => x.setAttribute('aria-pressed', x.dataset.side === side));
@@ -632,6 +632,7 @@ function fitScreen() {
   renderer.setSize(lay.w, lay.sceneH);
   camera.aspect = lay.w / lay.sceneH; camera.updateProjectionMatrix();
   hud.resize(lay);
+  document.documentElement.style.setProperty('--scene-h', lay.sceneH + 'px'); // upright, the lever sits at the foot of the road view
 }
 window.addEventListener('resize', fitScreen);
 // iPhones can still report the old size while turning; fit again once the turn has settled

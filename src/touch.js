@@ -17,6 +17,7 @@ export class TouchControls {
     this.drag = null; this.handlers = {};
     root.querySelectorAll('[data-pedal]').forEach(el => this.pedal(el));
     root.querySelectorAll('[data-gate]').forEach(el => this.gate(el));
+    root.querySelectorAll('[data-prnd]').forEach(el => this.prnd(el));
     root.querySelectorAll('[data-act]').forEach(el => el.addEventListener('pointerdown', e => {
       e.preventDefault(); const f = this.handlers[el.dataset.act]; if (f) f();
     }));
@@ -93,6 +94,40 @@ export class TouchControls {
     if (g === 0) k.y = MID; // neutral: stay at this column on the rail
     else this.leverSlots.forEach((s, c) => { const i = s.indexOf(g); if (i >= 0) { k.x = this.leverCols[c]; k.y = i ? BOT : TOP; } });
     this.leverPlace();
+  }
+
+  // Automatic mode's P R N D selector. Like a real one, the knob is dragged along its slot (a tap on
+  // a letter does nothing), clicks past each position, and settles in the nearest one when let go.
+  // If the car refuses that position (P or R while moving) it springs back to where the car is.
+  prnd(el) {
+    const knob = el.querySelector('.knob'), POS = 'PRND';
+    const k = { y: 0, id: null, off: 0, at: 'P' };
+    const place = y => { k.y = y; knob.style.top = `${y * 25}%`; };
+    // finger height in positions: 0 = P's centre .. 3 = D's
+    const posAt = e => { const r = el.getBoundingClientRect(); return (e.clientY - r.top) / r.height * 4 - 0.5; };
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const y = posAt(e); if (Math.abs(y - k.y) > 0.75) return; // grab the knob, not the letters
+      k.id = e.pointerId; k.off = y - k.y; capture(el, e); el.classList.add('drag');
+    });
+    el.addEventListener('pointermove', e => {
+      if (e.pointerId !== k.id) return;
+      const before = Math.round(k.y);
+      place(clamp(posAt(e) - k.off, 0, 3));
+      if (Math.round(k.y) !== before) { const f = this.handlers.detent; if (f) f(); }
+    });
+    const release = e => {
+      if (e.pointerId !== k.id) return;
+      k.id = null; el.classList.remove('drag');
+      const to = POS[Math.round(k.y)]; place(Math.round(k.y));
+      const f = this.handlers.range; if (f && to !== k.at) f(to);
+    };
+    el.addEventListener('pointerup', release); el.addEventListener('pointercancel', release);
+    // between drags the knob sits at the range the car is in
+    this.syncRange = r => {
+      if (k.id != null || (r === k.at && k.y === POS.indexOf(r))) return;
+      k.at = r; el.dataset.range = r; place(POS.indexOf(r));
+    };
   }
 
   // Must be called from a tap: iPhones only hand out motion data after asking the player.

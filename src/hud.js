@@ -195,7 +195,7 @@ export class Hud {
     if (s.hint) {
       g.font = `600 ${P ? 15 : 19}px ${DISP}`; g.textAlign = 'center';
       const tw = Math.min(bandR - bandL, g.measureText(s.hint.text).width + (P ? 24 : 36)), col = C[s.hint.tone] || C.fg;
-      const bh = P ? 30 : 36, y0 = P ? top - bh - 10 : lv && !s.automatic ? lv.top + 52 : 18; // under the button row when it is in the strip
+      const bh = P ? 30 : 36, y0 = P ? (s.gateTop ? Math.min(top, s.gateTop) : top) - bh - 10 : lv && !s.automatic ? lv.top + 52 : 18; // under the button row when it is in the strip
       const blink = s.hint.tone === 'bad' ? 0.75 + 0.25 * Math.sin(this.time * 8) : 1;
       g.globalAlpha = blink;
       this.round(bcx - tw / 2, y0, tw, bh, bh / 2, C.panel);
