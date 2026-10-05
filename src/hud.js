@@ -143,15 +143,21 @@ export class Hud {
     ];
     if (s.touch) lines.pop(); // phones have no C key, and the clutch is automatic there
     const ms = P ? 96 : this.map.size; // minimap size on screen
-    if (P) {
+    // Phones held sideways: the gear lever (in fun mode, the buttons) takes a top corner, the facts go
+    // under it, and the minimap takes the other top corner. Hints and messages sit in the strip between.
+    const lv = s.lever && s.lever.width ? s.lever : null, lhd = lv && s.lhd;
+    const bandL = lv ? (lhd ? ms + 24 : lv.right + 12) : 8, bandR = lv ? (lhd ? lv.left - 12 : w - ms - 24) : w - 8;
+    const bcx = lv ? (bandL + bandR) / 2 : cx;
+    if (P || lv) {
       // Upright phones: the same facts in three short lines, beside a smaller minimap
       lines.splice(0, lines.length,
         [s.section, C.fg, `600 16px ${DISP}`],
         [s.endless ? `${(s.odo / 1000).toFixed(2)} km · ${fmtTime(s.lapTime)}` : `Lap ${s.lap} · ${fmtTime(s.lapTime)}${s.best ? ' · best ' + fmtTime(s.best) : ''}`, C.fg, `12px ${MONO}`],
         [`Green ${s.green}%  Crash ${s.crashes}  Stall ${s.stalls}`, s.green >= 75 ? C.good : s.green >= 50 ? C.warn : C.bad, `11.5px ${MONO}`]);
-      this.round(10, 10, w - ms - 28, 20 + lines.length * 19, 12, C.panel);
+      const bw = P ? w - ms - 28 : 240, bx = P ? 10 : lhd ? lv.right - bw : lv.left, by = P ? 10 : lv.bottom + 12;
+      this.round(bx, by, bw, 20 + lines.length * 19, 12, C.panel);
       g.textAlign = 'left';
-      lines.forEach(([t, col, f], i) => { g.fillStyle = col; g.font = f; g.fillText(t, 20, 28 + i * 19); });
+      lines.forEach(([t, col, f], i) => { g.fillStyle = col; g.font = f; g.fillText(t, bx + 10, by + 18 + i * 19); });
     } else {
       this.round(12, 12, 290, 24 + lines.length * 22, 12, C.panel);
       g.textAlign = 'left';
@@ -159,7 +165,7 @@ export class Hud {
     }
 
     // Top-right: minimap (drawn at 150 px, scaled down on upright phones)
-    const mx = w - ms - (P ? 10 : 12), my = P ? 10 : 12;
+    const mx = lhd ? 12 : w - ms - (P ? 10 : 12), my = P ? 10 : 12;
     this.round(mx, my, ms, ms, 12, C.panel);
     let m = this.map, k = ms / m.size;
     if (this.world.loop) g.drawImage(this.mapImg, mx, my, ms, ms);
@@ -188,23 +194,23 @@ export class Hud {
     // Hint banner: top centre, or on upright phones along the bottom of the road view
     if (s.hint) {
       g.font = `600 ${P ? 15 : 19}px ${DISP}`; g.textAlign = 'center';
-      const tw = Math.min(w - 16, g.measureText(s.hint.text).width + (P ? 24 : 36)), col = C[s.hint.tone] || C.fg;
-      const bh = P ? 30 : 36, y0 = P ? top - bh - 10 : 18;
+      const tw = Math.min(bandR - bandL, g.measureText(s.hint.text).width + (P ? 24 : 36)), col = C[s.hint.tone] || C.fg;
+      const bh = P ? 30 : 36, y0 = P ? top - bh - 10 : lv && !s.fun ? lv.top + 52 : 18; // under the button row when it is in the strip
       const blink = s.hint.tone === 'bad' ? 0.75 + 0.25 * Math.sin(this.time * 8) : 1;
       g.globalAlpha = blink;
-      this.round(cx - tw / 2, y0, tw, bh, bh / 2, C.panel);
-      g.strokeStyle = col; g.lineWidth = 1.5; g.beginPath(); g.roundRect(cx - tw / 2, y0, tw, bh, bh / 2); g.stroke();
-      g.fillStyle = col; g.fillText(s.hint.text, cx, y0 + bh / 2 + 1, w - 28); g.globalAlpha = 1;
+      this.round(bcx - tw / 2, y0, tw, bh, bh / 2, C.panel);
+      g.strokeStyle = col; g.lineWidth = 1.5; g.beginPath(); g.roundRect(bcx - tw / 2, y0, tw, bh, bh / 2); g.stroke();
+      g.fillStyle = col; g.fillText(s.hint.text, bcx, y0 + bh / 2 + 1, tw - 12); g.globalAlpha = 1;
     }
 
     // Toasts
-    const ts = P ? 21 : 30, ty = P ? top * 0.38 : h * 0.3, tmax = w - 24;
+    const ts = P ? 21 : 30, ty = P ? top * 0.38 : lv ? Math.max(h * 0.3, lv.top + 118) : h * 0.3, tmax = lv ? bandR - bandL : w - 24;
     g.font = `700 ${ts}px ${DISP}`; g.textAlign = 'center';
     this.toasts.forEach((t, i) => {
       t.t -= dt;
       g.globalAlpha = clamp(t.t / 0.5, 0, 1);
-      g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillText(t.text, cx + 2, ty + i * (ts + 8) + 2, tmax);
-      g.fillStyle = C[t.tone] || C.fg; g.fillText(t.text, cx, ty + i * (ts + 8), tmax);
+      g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillText(t.text, bcx + 2, ty + i * (ts + 8) + 2, tmax);
+      g.fillStyle = C[t.tone] || C.fg; g.fillText(t.text, bcx, ty + i * (ts + 8), tmax);
     });
     g.globalAlpha = 1;
     this.toasts = this.toasts.filter(t => t.t > 0);

@@ -118,6 +118,7 @@ const state = {
   crashes: 0, stalls: 0, grinds: 0, crashCool: 0, shake: 0,
   lap: 1, lapRunning: false, lapTime: 0, best: null, nextCp: 0,
   greenT: 0, driveT: 0, lastToast: {}, keyOff: false, lights: false, pd: 6, odo: 0,
+  fun: false, shiftWait: 0, // fun mode (phones): gears change by themselves
 };
 
 function toastOnce(key, text, tone, gap = 4) {
@@ -270,6 +271,7 @@ function coach(n, grade) {
     if (rpm < 1000) return { hint: { text: `Revs dropping: more accelerator, or clutch back in (${K.clutchName})`, tone: 'bad' } };
     return { hint: { text: `Clutch at the bite point: tap ${K.clutchName} to hold it here`, tone: 'good' } };
   }
+  if (state.fun) return lightsHint();
   if (dt.gear === 0 && state.throttle > 0.3 && Math.abs(sp) < 1) return { hint: { text: tk('You are in neutral. Press 1 for first gear', 'You are in neutral. Push the lever up into 1st'), tone: 'warn' }, suggest: { gear: 1, dir: 1 } };
   if (dt.gear > 0) {
     if (rpm > 5600 && dt.gear < TOP_GEAR) { const g = bestGear(1); return { hint: { text: `High revs: change up to ${ORD[g]}`, tone: 'bad' }, suggest: { gear: g, dir: 1 } }; }
@@ -278,8 +280,24 @@ function coach(n, grade) {
     if (grade < -0.06 && dt.gear >= 4 && sp > 12) return { hint: { text: 'Steep descent: a lower gear holds your speed', tone: 'warn' }, suggest: { gear: 3, dir: -1 } };
     if (rpm > 3200 && dt.gear < TOP_GEAR && state.throttle < 0.5 && Math.abs(grade) < 0.03) { const g = bestGear(1); if (dt.wheelRpmFor(g) > 1500) return { suggest: { gear: g, dir: 1 } }; }
   }
+  return lightsHint();
+}
+function lightsHint() {
   if (!state.lights && (sky.dark > 0.55 || sky.weather === 'fog')) return { hint: { text: tk(sky.dark > 0.55 ? "It's dark: press L for the headlights" : 'Fog: press L for the headlights', 'Turn the headlights on: tap the light button'), tone: 'warn' } };
   return {};
+}
+
+// Fun mode's gearbox: 1st to pull away, up as the revs rise (later the harder you accelerate),
+// down as they fall, and a pause after each change so it doesn't hunt between two gears
+function autoGears(h) {
+  state.shiftWait = Math.max(0, state.shiftWait - h);
+  if (!dt.on || dt.crankT > 0 || state.shiftWait > 0 || dt.gear < 0) return;
+  const g = dt.gear, rpm = dt.wheelRpmFor(g), t = state.throttle;
+  let to = g;
+  if (g === 0) { if (t > 0.05 && dt.v > -0.5) to = 1; }
+  else if (g < TOP_GEAR && rpm > 2600 + 2400 * t && dt.wheelRpmFor(g + 1) > 1400) to = g + 1;
+  else if (g > 1 && rpm < 1300 + 900 * t && dt.wheelRpmFor(g - 1) < 5000) to = g - 1;
+  if (to !== g) { requestGear(to); state.shiftWait = 0.8; }
 }
 
 /* ---------- Main update ---------- */
@@ -292,7 +310,8 @@ function update(h) {
   // pedals and steering
   // each pedal heads for its target: 1 while its key is held, or how hard the touch pedal is pressed
   const ramp = (cur, tgt, up, dn) => cur + clamp(tgt - cur, -dn * h, up * h);
-  state.throttle = ramp(state.throttle, Math.max(down(...K.throttle) ? 1 : 0, touch ? touch.throttle : 0), 3.5, 6);
+  state.throttle = ramp(state.throttle, Math.max(down(...K.throttle) ? 1 : 0, touch ? Math.max(touch.throttle, touch.lift) : 0), 3.5, 6);
+  if (state.fun) autoGears(h);
   state.brake = ramp(state.brake, Math.max(down(...K.brake) ? 1 : 0, touch ? touch.brake : 0), 4, 8);
   state.handbrake = down(...K.handbrake) ? 1 : 0;
   // Clutch pedal. Holding the key pushes it down (gently for the first moment, so a tap nudges it).
@@ -431,6 +450,8 @@ function update(h) {
     crashes: state.crashes, stalls: state.stalls, grinds: state.grinds,
     green: state.driveT > 1 ? Math.round(100 * state.greenT / state.driveT) : 100,
     traffic, x: player.x, z: player.z, yaw: player.yaw, touch: !!touch,
+    // sideways on a phone the lever (or in fun mode the buttons) sits in a top corner: the HUD lays its panels out around it
+    lever: touch && !hud.portrait ? (state.fun ? $('touch').querySelector('.t-util') : touch.gateEl).getBoundingClientRect() : null, lhd: document.body.classList.contains('lhd'), fun: state.fun,
   }, h);
 }
 
@@ -480,6 +501,17 @@ if (TOUCH) {
   let side = 'rhd';
   try { if (localStorage.getItem('clutchrun-side') === 'lhd') side = 'lhd'; } catch (e) {}
   setSide(side);
+  // Fun mode: automatic gears, and lift the phone to accelerate
+  const setFun = on => {
+    state.fun = touch.fun = on;
+    document.body.classList.toggle('fun', on);
+    document.querySelectorAll('[data-fun]').forEach(x => x.setAttribute('aria-pressed', (x.dataset.fun === '1') === on));
+    try { localStorage.setItem('clutchrun-fun', on ? '1' : '0'); } catch (e) {}
+  };
+  document.querySelectorAll('[data-fun]').forEach(b => b.addEventListener('click', () => setFun(b.dataset.fun === '1')));
+  let fun = false;
+  try { fun = localStorage.getItem('clutchrun-fun') === '1'; } catch (e) {}
+  setFun(fun);
 }
 // Volume: sliders on the start and pause screens and in the game's corner panel, - and = while
 // driving, remembered in the browser
@@ -544,14 +576,14 @@ document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click'
 $('go').addEventListener('click', () => {
   if (touch) {
     // both need this tap: iPhones ask for motion access, Android goes full screen
-    touch.enableTilt().then(ok => { setTimeout(() => { if (!ok || !touch.tilting) hud.toast('No tilt here: drag sideways on the road to steer', 'warn'); }, 1500); });
+    touch.enableTilt().then(ok => { setTimeout(() => { if (!ok || !touch.tilting) hud.toast(state.fun ? 'No tilt here: drag to steer, press Accel to go' : 'No tilt here: drag sideways on the road to steer', 'warn'); }, 1500); });
     const el = document.documentElement;
     try { if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); } catch (e) {}
     dt.autoClutch = true; // one thumb can't hold the clutch and the accelerator at once
     $('touch').hidden = false;
   }
   sound.init(); state.started = true; $('menu').hidden = true; $('hud-vol').hidden = false;
-  hud.toast(touch ? 'Push the lever up into 1st, then press Accel' : `Press 1 for first gear, then ${K.goName} to go`, 'fg');
+  hud.toast(state.fun ? 'Lift the phone to go, lay it flat to slow down' : touch ? 'Push the lever up into 1st, then press Accel' : `Press 1 for first gear, then ${K.goName} to go`, 'fg');
   canvas.focus();
 });
 $('resume').addEventListener('click', () => setPaused(false));

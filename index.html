@@ -87,10 +87,17 @@ body.lhd .t-pedals{right:auto;left:max(14px,env(safe-area-inset-left))}
 .t-pedal i{position:absolute;inset:auto 0 0;height:calc(var(--press,0)*100%);background:var(--bad);opacity:.55}
 .t-pedal.gas i{background:var(--good)}
 .t-pedal b{position:absolute;inset:auto 0 8px;text-align:center;font:600 13px var(--disp);text-transform:uppercase;letter-spacing:.06em}
-/* the Engine / View / Road / pause row: above the gears when sideways, centred above both thumbs when upright */
+/* the Engine / View / Road / pause row: top centre when sideways, centred above both thumbs when upright */
 .t-util{display:flex;gap:6px;left:max(14px,env(safe-area-inset-left));bottom:calc(max(14px,env(safe-area-inset-bottom)) + 140px)!important}
 body.lhd .t-util{left:auto;right:max(14px,env(safe-area-inset-right))}
 @media (orientation:portrait){.t-util,body.lhd .t-util{left:50%;right:auto;transform:translateX(-50%);bottom:calc(max(14px,env(safe-area-inset-bottom)) + 160px)!important}}
+/* sideways, the gear lever sits in a top corner, near the road the eyes are on, and the button row moves to the top centre */
+body.fun .t-gears{display:none}
+@media (orientation:landscape){#touch>.t-gears{top:max(12px,env(safe-area-inset-top));bottom:auto}
+  #touch>.t-util,body.lhd #touch>.t-util{top:max(12px,env(safe-area-inset-top));bottom:auto!important;left:50%;right:auto;transform:translateX(-50%)}
+  /* fun mode has no lever: the buttons take its corner, in two rows */
+  body.fun #touch>.t-util{display:grid;grid-template-columns:repeat(3,auto);left:max(14px,env(safe-area-inset-left));transform:none}
+  body.fun.lhd #touch>.t-util{left:auto;right:max(14px,env(safe-area-inset-right))}}
 .toast-card{position:fixed;left:50%;top:22%;transform:translateX(-50%);width:min(520px,calc(100% - 32px));background:var(--panel);border:1px solid var(--good);border-radius:14px;padding:18px 22px;text-align:center}
 .toast-card b{display:block;font:700 30px var(--disp);text-transform:uppercase;color:var(--good)}
 .toast-card p{margin:6px 0 0;font-size:14px;line-height:1.5}
@@ -152,6 +159,11 @@ body.lhd .t-util{left:auto;right:max(14px,env(safe-area-inset-right))}
     <div class="modes touch-only">
       <button type="button" data-side="rhd" aria-pressed="true"><b>Right-hand drive</b><span>As in India and the UK. Gears under your left thumb, pedals under your right.</span></button>
       <button type="button" data-side="lhd" aria-pressed="false"><b>Left-hand drive</b><span>As in the US and Europe. Gears on the right, pedals on the left.</span></button>
+    </div>
+    <h2 class="touch-only">Mode</h2>
+    <div class="modes touch-only">
+      <button type="button" data-fun="0" aria-pressed="true"><b>Learner</b><span>You change gear with the lever. Pedals under your thumb.</span></button>
+      <button type="button" data-fun="1" aria-pressed="false"><b>Fun</b><span>Gears change by themselves. Lift the phone to go, lay it flat to slow down.</span></button>
     </div>
     <p class="note touch-only">Tilt your phone like a steering wheel to steer, held upright or sideways. No tilt? Drag sideways on the road.</p>
     <h2>Drive</h2>
