@@ -441,6 +441,7 @@ function update(h) {
   const section = !n || n.dist > ROAD_HALF + 1 ? 'Off road · grass'
     : `${here.surf === 'gravel' ? 'Gravel road' : 'Tarmac'}${sinG > 0.035 ? ` · climbing ${Math.round(sinG * 100)}%` : sinG < -0.035 ? ` · downhill ${Math.round(-sinG * 100)}%` : ''}`;
   if (touch) touch.syncGear(dt.gear); // the lever's knob shows the gear the car is really in
+  if (state.fun) { const r = dt.gear < 0; if (revBtn.textContent !== (r ? 'R' : 'D')) { revBtn.textContent = r ? 'R' : 'D'; revBtn.setAttribute('aria-pressed', r); } }
   hud.draw({
     rpm: dt.rpm, kmh: sp * 3.6, gearLabel: gearName(dt.gear), on: dt.on || dt.crankT > 0,
     suggest: c.suggest, hint: c.hint,
@@ -486,12 +487,20 @@ document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('clic
 setLayout(layoutName);
 // Touch controls. The driving side puts the gears under the hand that works the lever in that car.
 let touch = null;
+const revBtn = $('touch').querySelector('.t-rev');
 if (TOUCH) {
   touch = new TouchControls($('touch'), canvas);
   const press = code => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); window.dispatchEvent(new KeyboardEvent('keyup', { code })); };
   const acts = { engine: 'KeyI', view: 'KeyV', reset: 'KeyT', pause: 'KeyP', mute: 'KeyM', lights: 'KeyL' };
   for (const [act, code] of Object.entries(acts)) touch.on(act, () => press(code));
   touch.on('gear', g => requestGear(g)); // the H-pattern lever
+  // Fun mode's D / R button: reverse, or back to driving forwards, once the car has stopped
+  touch.on('reverse', () => {
+    if (!state.started || state.paused) return;
+    if (Math.abs(dt.v) > 0.8) { hud.toast('Stop first, then tap R', 'warn'); return; }
+    requestGear(dt.gear < 0 ? 0 : -1); state.shiftWait = 0;
+    hud.toast(dt.gear < 0 ? 'Reverse: lift the phone to back up' : 'Drive');
+  });
   const setSide = side => {
     document.body.classList.toggle('lhd', side === 'lhd');
     document.querySelectorAll('[data-side]').forEach(x => x.setAttribute('aria-pressed', x.dataset.side === side));
