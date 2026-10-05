@@ -11,6 +11,7 @@ export const TOP_GEAR = 5;
 // Clutch pedal travel (0 = foot off, 1 = pressed to the floor). Between these two points it slips: the bite zone.
 export const BITE_TOP = 0.88, BITE_BOTTOM = 0.38;
 
+const engineDrag = w => 7 + 0.065 * w; // N m at w rad/s
 const TQ = [[0, 50], [800, 72], [1500, 92], [2500, 106], [3500, 113], [4200, 115], [5000, 111], [6000, 101], [7000, 86], [8000, 60]];
 export function torqueAt(rpm) {
   if (rpm <= 0) return TQ[0][1];
@@ -64,13 +65,14 @@ export class Drivetrain {
       } else eng = clamp((BITE_TOP - this.pedal) / (BITE_TOP - BITE_BOTTOM), 0, 1);
       this.eng = eng;
 
-      // Engine torque: throttle, an idle governor, and internal drag
-      const drag = 6 + 0.045 * this.omega;
+      // Engine torque: throttle, an idle governor, and internal drag (friction and pumping against a
+      // closed throttle: about 30 N m at 3500 r/min, which is what makes lifting off slow the car in gear)
+      const drag = engineDrag(this.omega);
       let drive = 0;
       if (this.on) {
         const thr = rpm > SPEC.limiter ? 0 : inp.throttle;
         const idleW = SPEC.idle / RPM;
-        const gov = clamp(6 + 0.045 * idleW + (idleW - this.omega) * 4, 0, 85);
+        const gov = clamp(engineDrag(idleW) + (idleW - this.omega) * 4, 0, 85);
         drive = Math.max(thr * torqueAt(rpm), gov);
       }
       const Te = drive - drag;

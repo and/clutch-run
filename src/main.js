@@ -11,7 +11,7 @@ import { TouchControls } from './touch.js';
 // Phones and tablets get on-screen pedals, gear buttons and tilt steering.
 // The release, shown on the start screen so it's clear which one a browser is running.
 // Bump with every release: the count of commits once this one is made, and its date.
-const VERSION = 21, RELEASED = '5 Oct 2026';
+const VERSION = 22, RELEASED = '5 Oct 2026';
 const TOUCH = document.documentElement.classList.contains('touch'); // set by the first script in index.html
 
 // A phone held upright stacks like a car: the road view on top, then the dashboard, then the controls.
@@ -352,7 +352,10 @@ function update(h) {
   const hL = world.surfaceAt(player.x + lx * 0.8, player.z + lz * 0.8).y;
   const hR = world.surfaceAt(player.x - lx * 0.8, player.z - lz * 0.8).y;
   const sinG = clamp((hF - hB) / 2.5, -0.5, 0.5);
-  const crr = here.surf === 'asphalt' ? 0.015 : here.surf === 'gravel' ? 0.035 : 0.1;
+  // Rolling resistance: the surface, a little more as speed rises (tyres flex faster), and the scrub
+  // of tyres held at a slip angle through a corner, which bleeds speed the harder the car turns
+  const latA = dt.v * dt.v * Math.abs(Math.tan(player.steer)) / SPEC.wheelbase;
+  const crr = (here.surf === 'asphalt' ? 0.015 : here.surf === 'gravel' ? 0.035 : 0.1) * (1 + Math.abs(dt.v) / 30) + 0.06 * latA / 9.81;
   // grip changes over a few frames as the tyres cross onto another surface, not in one step
   player.grip += ((here.surf === 'asphalt' ? 1 : here.surf === 'gravel' ? 0.82 : 0.7) - player.grip) * (1 - Math.exp(-h * 8));
   const grip = player.grip * sky.grip; // rain: a wet road grips less
@@ -374,9 +377,14 @@ function update(h) {
 
   const now = world.surfaceAt(player.x, player.z);
   player.y += (now.y - player.y) * Math.min(1, h * 20);
-  player.pitch += (-Math.atan(sinG) - player.pitch) * Math.min(1, h * 10);
-  player.roll += (Math.atan((hL - hR) / 1.6) - player.roll) * Math.min(1, h * 10);
-  poseCar(player.car, player.x, player.y, player.z, player.yaw, player.pitch, player.roll, dt.v, player.steer, h, state.brake > 0.1, state.lights);
+  // The body sits on springs: it dives under braking, squats when accelerating, leans out of corners,
+  // and the tyres pass the road's texture up as a fine shake (more on gravel and grass, more with speed)
+  const ay = dt.v * dt.v * Math.tan(player.steer) / SPEC.wheelbase; // + = turning left
+  player.pitch += (-Math.atan(sinG) - clamp(dt.accel, -9, 4) * 0.004 - player.pitch) * Math.min(1, h * 6);
+  player.roll += (Math.atan((hL - hR) / 1.6) + clamp(ay, -7, 7) * 0.006 - player.roll) * Math.min(1, h * 6);
+  const rough = (here.surf === 'asphalt' ? 0.004 : here.surf === 'gravel' ? 0.018 : 0.028) * Math.min(1, sp / 8);
+  const bump = rough * (Math.sin(state.odo * 5.3) + 0.6 * Math.sin(state.odo * 8.9 + 1.3) + 0.4 * Math.sin(state.odo * 15.1));
+  poseCar(player.car, player.x, player.y + bump, player.z, player.yaw, player.pitch, player.roll, dt.v, player.steer, h, state.brake > 0.1, state.lights);
 
   // where we are on the loop
   const n = world.nearest(player.x, player.z, 3);
@@ -425,9 +433,14 @@ function update(h) {
     camInit = false;
   } else {
   if (cam === 0) {
-    want = new THREE.Vector3(player.x - fx * 8.5, player.y + 3.4, player.z - fz * 8.5);
+    // Close behind, aimed so the car sits low in the picture with the road ahead above it: its wheels
+    // just above the dials, or near the foot of the road view on an upright phone
+    const vf = fitFov(60 + Math.min(12, sp * 0.3)) * Math.PI / 360; // half the vertical field of view
+    const f = hud.portrait ? 0.86 : Math.min(0.82, (hud.dialTop || hud.h * 0.8) / hud.h - 0.02); // wheels this far down
+    const tilt = Math.atan(2.6 / 7) - Math.atan((2 * f - 1) * Math.tan(vf));
+    want = new THREE.Vector3(player.x - fx * 7, player.y + 2.6, player.z - fz * 7);
     want.y = Math.max(want.y, world.surfaceAt(want.x, want.z).y + 1.6);
-    look = new THREE.Vector3(player.x + fx * 5, player.y + 1.3, player.z + fz * 5);
+    look = new THREE.Vector3(player.x + fx * 12, player.y + 2.6 - Math.tan(tilt) * 19, player.z + fz * 12);
   } else {
     want = new THREE.Vector3(player.x + fx * 0.4, player.y + 1.32, player.z + fz * 0.4);
     look = new THREE.Vector3(player.x + fx * 20, player.y + 1.2 + Math.tan(-player.pitch) * 20, player.z + fz * 20);
