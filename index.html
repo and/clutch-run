@@ -64,6 +64,8 @@ html.muted .hud-vol input,html.muted .hud-vol span,html.muted .vol input{opacity
 .conds select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#161f28;color:var(--fg);font:500 13px var(--mono)}
 .sound-row{display:flex;align-items:center;gap:14px}
 .sound-row .vol{flex:1}
+.ver{position:absolute;top:7px;right:14px;margin:0;font:11px var(--mono);color:var(--muted)}
+#menu .card{position:relative}
 .fs{margin-top:14px;width:100%;justify-content:center}.fs[hidden]{display:none}
 .snd{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--fg);font:600 15px var(--disp);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;white-space:nowrap}
 html.muted .snd{border-color:var(--accent);color:var(--accent)}
@@ -127,6 +129,7 @@ body.lhd .t-prnd{left:auto;right:max(14px,env(safe-area-inset-right))}
 
 <div class="overlay" id="menu">
   <div class="card">
+    <p class="ver" id="version"></p>
     <h1>Clutch <span>Run</span></h1>
     <p class="dek">Drive a manual car. Keep the revs in the green.</p>
     <h2 class="desk">Clutch</h2>

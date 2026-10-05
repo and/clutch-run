@@ -9,6 +9,9 @@ import { Sky, TIMES, WEATHERS } from './sky.js';
 import { TouchControls } from './touch.js';
 
 // Phones and tablets get on-screen pedals, gear buttons and tilt steering.
+// The release, shown on the start screen so it's clear which one a browser is running.
+// Bump with every release: the count of commits once this one is made, and its date.
+const VERSION = 19, RELEASED = '5 Oct 2026';
 const TOUCH = document.documentElement.classList.contains('touch'); // set by the first script in index.html
 
 // A phone held upright stacks like a car: the road view on top, then the dashboard, then the controls.
@@ -471,6 +474,7 @@ function frame(t) {
 
 /* ---------- Menus ---------- */
 const $ = id => document.getElementById(id);
+$('version').textContent = `v${VERSION} · ${RELEASED}`;
 function setPaused(p) {
   state.paused = p; $('pause').hidden = !p; $('hud-vol').hidden = p; // the pause screen has its own slider
   if (touch) $('touch').hidden = p;
