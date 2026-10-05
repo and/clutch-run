@@ -64,6 +64,7 @@ html.muted .hud-vol input,html.muted .hud-vol span,html.muted .vol input{opacity
 .conds select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#161f28;color:var(--fg);font:500 13px var(--mono)}
 .sound-row{display:flex;align-items:center;gap:14px}
 .sound-row .vol{flex:1}
+.fs{margin-top:14px;width:100%;justify-content:center}.fs[hidden]{display:none}
 .snd{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--fg);font:600 15px var(--disp);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;white-space:nowrap}
 html.muted .snd{border-color:var(--accent);color:var(--accent)}
 /* phones: touch controls, mirrored for left-hand drive */
@@ -197,6 +198,7 @@ body.lhd .t-rev{left:auto;right:max(14px,env(safe-area-inset-right))}
       <label>Time <select data-set="time"><option value="now">Now (your clock)</option><option value="morning">Morning</option><option value="noon">Midday</option><option value="evening">Evening</option><option value="night">Night</option></select></label>
       <label>Weather <select data-set="weather"><option value="clear">Clear</option><option value="cloudy">Cloudy</option><option value="rain">Rain</option><option value="fog">Fog</option></select></label>
     </div>
+    <button type="button" class="snd fs" id="fullscreen" hidden>Exit full screen</button>
     <button type="button" class="go" id="resume">Resume</button>
   </div>
 </div>

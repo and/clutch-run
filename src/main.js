@@ -596,6 +596,20 @@ $('go').addEventListener('click', () => {
   canvas.focus();
 });
 $('resume').addEventListener('click', () => setPaused(false));
+// Full screen (phones go full screen on Start): a button on the pause screen leaves it, or goes back in
+const fsBtn = $('fullscreen');
+function showFullscreen() {
+  fsBtn.hidden = !document.fullscreenEnabled;
+  fsBtn.textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';
+}
+fsBtn.addEventListener('click', () => {
+  try {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else document.documentElement.requestFullscreen().catch(() => {});
+  } catch (e) {}
+});
+document.addEventListener('fullscreenchange', showFullscreen);
+showFullscreen();
 function fitScreen() {
   const lay = screenLayout();
   renderer.setSize(lay.w, lay.sceneH);
