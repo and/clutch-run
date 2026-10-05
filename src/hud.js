@@ -143,7 +143,7 @@ export class Hud {
     ];
     if (s.touch) lines.pop(); // phones have no C key, and the clutch is automatic there
     const ms = P ? 96 : this.map.size; // minimap size on screen
-    // Phones held sideways: the gear lever (in fun mode, the buttons) takes a top corner, the facts go
+    // Phones held sideways: the gear lever (in automatic mode, the buttons) takes a top corner, the facts go
     // under it, and the minimap takes the other top corner. Hints and messages sit in the strip between.
     const lv = s.lever && s.lever.width ? s.lever : null, lhd = lv && s.lhd;
     const bandL = lv ? (lhd ? ms + 24 : lv.right + 12) : 8, bandR = lv ? (lhd ? lv.left - 12 : w - ms - 24) : w - 8;
@@ -195,7 +195,7 @@ export class Hud {
     if (s.hint) {
       g.font = `600 ${P ? 15 : 19}px ${DISP}`; g.textAlign = 'center';
       const tw = Math.min(bandR - bandL, g.measureText(s.hint.text).width + (P ? 24 : 36)), col = C[s.hint.tone] || C.fg;
-      const bh = P ? 30 : 36, y0 = P ? top - bh - 10 : lv && !s.fun ? lv.top + 52 : 18; // under the button row when it is in the strip
+      const bh = P ? 30 : 36, y0 = P ? top - bh - 10 : lv && !s.automatic ? lv.top + 52 : 18; // under the button row when it is in the strip
       const blink = s.hint.tone === 'bad' ? 0.75 + 0.25 * Math.sin(this.time * 8) : 1;
       g.globalAlpha = blink;
       this.round(bcx - tw / 2, y0, tw, bh, bh / 2, C.panel);

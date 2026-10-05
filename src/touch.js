@@ -4,14 +4,14 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // keep receiving a finger's moves after it slides off the control it started on
 const capture = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch (err) {} };
 const FULL_TILT = 32, DEAD_ZONE = 3; // degrees of phone rotation for full lock, and the slack around straight
-// Fun mode: the phone flat is foot off the accelerator; lifting its top edge presses it, fully by this angle
+// Automatic mode: the phone flat is foot off the accelerator; lifting its top edge presses it, fully by this angle
 const LIFT_START = 8, LIFT_FULL = 55;
 
 export class TouchControls {
   constructor(root, scene) {
     this.throttle = 0; this.brake = 0;
     this.tilt = 0; this.tiltAt = 0; this.sign = 0;
-    this.fun = false; this.liftRaw = 0; // fun mode: steer by rolling the phone, accelerate by lifting it
+    this.automatic = false; this.liftRaw = 0; // automatic mode: steer by rolling the phone, accelerate by lifting it
     this.drag = null; this.handlers = {};
     root.querySelectorAll('[data-pedal]').forEach(el => this.pedal(el));
     root.querySelectorAll('[data-gate]').forEach(el => this.gate(el));
@@ -108,15 +108,15 @@ export class TouchControls {
     // gravity in screen axes (x right, y up, as the player sees the screen)
     const a = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180;
     const sx = g.x * Math.cos(a) - g.y * Math.sin(a), sy = g.x * Math.sin(a) + g.y * Math.cos(a);
-    if (!this.fun && Math.hypot(sx, sy) < 2) return; // phone lying flat: no wheel to read
+    if (!this.automatic && Math.hypot(sx, sy) < 2) return; // phone lying flat: no wheel to read
     // Browsers disagree on the sign of this reading. The phone is held top-up when driving starts
-    // (in fun mode, the first time it is lifted), so whichever sign "up" has then is the one to use.
+    // (in automatic mode, the first time it is lifted), so whichever sign "up" has then is the one to use.
     if (!this.sign) {
-      if (Math.abs(sy) < 3) { if (this.fun) this.tiltAt = performance.now(); return; } // flat: motion works, nothing pressed yet
+      if (Math.abs(sy) < 3) { if (this.automatic) this.tiltAt = performance.now(); return; } // flat: motion works, nothing pressed yet
       this.sign = Math.sign(sy);
     }
     let deg = Math.atan2(sx * this.sign, sy * this.sign) * 180 / Math.PI; // + = phone turned anticlockwise
-    if (this.fun) {
+    if (this.automatic) {
       // Held anywhere from flat to upright, so the wheel is the phone's roll: how far one side is
       // lower than the other. The lift is how far the top edge is raised above the bottom one.
       const gm = Math.hypot(sx, sy, g.z || 0) || 9.81;
@@ -132,8 +132,8 @@ export class TouchControls {
 
   get tilting() { return performance.now() - this.tiltAt < 500; }
 
-  // Fun mode's accelerator, 0..1, from how far the phone is lifted
-  get lift() { return this.fun && this.tilting ? this.liftRaw : 0; }
+  // Automatic mode's accelerator, 0..1, from how far the phone is lifted
+  get lift() { return this.automatic && this.tilting ? this.liftRaw : 0; }
 
   // -1 full left .. +1 full right
   get steer() {

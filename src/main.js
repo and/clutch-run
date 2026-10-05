@@ -118,7 +118,7 @@ const state = {
   crashes: 0, stalls: 0, grinds: 0, crashCool: 0, shake: 0,
   lap: 1, lapRunning: false, lapTime: 0, best: null, nextCp: 0,
   greenT: 0, driveT: 0, lastToast: {}, keyOff: false, lights: false, pd: 6, odo: 0,
-  fun: false, shiftWait: 0, // fun mode (phones): gears change by themselves
+  automatic: false, shiftWait: 0, range: 'P', // automatic mode (phones): P R N D, and gears change by themselves in D
 };
 
 function toastOnce(key, text, tone, gap = 4) {
@@ -271,7 +271,7 @@ function coach(n, grade) {
     if (rpm < 1000) return { hint: { text: `Revs dropping: more accelerator, or clutch back in (${K.clutchName})`, tone: 'bad' } };
     return { hint: { text: `Clutch at the bite point: tap ${K.clutchName} to hold it here`, tone: 'good' } };
   }
-  if (state.fun) return lightsHint();
+  if (state.automatic) return lightsHint();
   if (dt.gear === 0 && state.throttle > 0.3 && Math.abs(sp) < 1) return { hint: { text: tk('You are in neutral. Press 1 for first gear', 'You are in neutral. Push the lever up into 1st'), tone: 'warn' }, suggest: { gear: 1, dir: 1 } };
   if (dt.gear > 0) {
     if (rpm > 5600 && dt.gear < TOP_GEAR) { const g = bestGear(1); return { hint: { text: `High revs: change up to ${ORD[g]}`, tone: 'bad' }, suggest: { gear: g, dir: 1 } }; }
@@ -287,14 +287,18 @@ function lightsHint() {
   return {};
 }
 
-// Fun mode's gearbox: 1st to pull away, up as the revs rise (later the harder you accelerate),
-// down as they fall, and a pause after each change so it doesn't hunt between two gears
+// Automatic mode's gearbox. In D: the gear that suits the speed, up as the revs rise (later the
+// harder you accelerate), down as they fall, and a pause after each change so it doesn't hunt
+// between two gears. R and D also re-engage after the engine restarts or the car is put back on the road.
+const driveGear = () => { for (let g = TOP_GEAR; g > 1; g--) if (dt.wheelRpmFor(g) >= 1300) return g; return 1; };
 function autoGears(h) {
   state.shiftWait = Math.max(0, state.shiftWait - h);
-  if (!dt.on || dt.crankT > 0 || state.shiftWait > 0 || dt.gear < 0) return;
+  if (!dt.on || dt.crankT > 0) return;
+  if (state.range === 'R') { if (dt.gear === 0 && Math.abs(dt.v) < 0.8) requestGear(-1); return; }
+  if (state.range !== 'D' || state.shiftWait > 0) return;
   const g = dt.gear, rpm = dt.wheelRpmFor(g), t = state.throttle;
   let to = g;
-  if (g === 0) { if (t > 0.05 && dt.v > -0.5) to = 1; }
+  if (g <= 0) { if (dt.v > -0.8) to = driveGear(); }
   else if (g < TOP_GEAR && rpm > 2600 + 2400 * t && dt.wheelRpmFor(g + 1) > 1400) to = g + 1;
   else if (g > 1 && rpm < 1300 + 900 * t && dt.wheelRpmFor(g - 1) < 5000) to = g - 1;
   if (to !== g) { requestGear(to); state.shiftWait = 0.8; }
@@ -311,9 +315,9 @@ function update(h) {
   // each pedal heads for its target: 1 while its key is held, or how hard the touch pedal is pressed
   const ramp = (cur, tgt, up, dn) => cur + clamp(tgt - cur, -dn * h, up * h);
   state.throttle = ramp(state.throttle, Math.max(down(...K.throttle) ? 1 : 0, touch ? Math.max(touch.throttle, touch.lift) : 0), 3.5, 6);
-  if (state.fun) autoGears(h);
+  if (state.automatic) autoGears(h);
   state.brake = ramp(state.brake, Math.max(down(...K.brake) ? 1 : 0, touch ? touch.brake : 0), 4, 8);
-  state.handbrake = down(...K.handbrake) ? 1 : 0;
+  state.handbrake = down(...K.handbrake) || (state.automatic && state.range === 'P') ? 1 : 0; // P holds the car
   // Clutch pedal. Holding the key pushes it down (gently for the first moment, so a tap nudges it).
   // Letting go lets it rise by itself: quickly to the bite point, slowly through it, quickly after,
   // the way a driver's foot does. Tap while it rises to hover at the bite point.
@@ -441,9 +445,9 @@ function update(h) {
   const section = !n || n.dist > ROAD_HALF + 1 ? 'Off road · grass'
     : `${here.surf === 'gravel' ? 'Gravel road' : 'Tarmac'}${sinG > 0.035 ? ` · climbing ${Math.round(sinG * 100)}%` : sinG < -0.035 ? ` · downhill ${Math.round(-sinG * 100)}%` : ''}`;
   if (touch) touch.syncGear(dt.gear); // the lever's knob shows the gear the car is really in
-  if (state.fun) { const r = dt.gear < 0; if (revBtn.textContent !== (r ? 'R' : 'D')) { revBtn.textContent = r ? 'R' : 'D'; revBtn.setAttribute('aria-pressed', r); } }
+  if (state.automatic && prndShown !== state.range) { prndShown = state.range; prnd.forEach(b => b.setAttribute('aria-pressed', b.dataset.act === 'prnd-' + prndShown)); }
   hud.draw({
-    rpm: dt.rpm, kmh: sp * 3.6, gearLabel: gearName(dt.gear), on: dt.on || dt.crankT > 0,
+    rpm: dt.rpm, kmh: sp * 3.6, gearLabel: state.automatic ? (state.range === 'D' && dt.gear > 0 ? 'D' + dt.gear : state.range) : gearName(dt.gear), on: dt.on || dt.crankT > 0,
     suggest: c.suggest, hint: c.hint,
     clutch: dt.autoClutch ? (dt.gear === 0 ? 0 : 1 - dt.eng) : dt.pedal, brake: state.brake, throttle: state.throttle,
     auto: dt.autoClutch, clutchKey: K.clutchName, bite: [BITE_BOTTOM, BITE_TOP], section, lap: state.lap, lapTime: state.lapTime, best: state.best,
@@ -451,8 +455,8 @@ function update(h) {
     crashes: state.crashes, stalls: state.stalls, grinds: state.grinds,
     green: state.driveT > 1 ? Math.round(100 * state.greenT / state.driveT) : 100,
     traffic, x: player.x, z: player.z, yaw: player.yaw, touch: !!touch,
-    // sideways on a phone the lever (or in fun mode the buttons) sits in a top corner: the HUD lays its panels out around it
-    lever: touch && !hud.portrait ? (state.fun ? $('touch').querySelector('.t-util') : touch.gateEl).getBoundingClientRect() : null, lhd: document.body.classList.contains('lhd'), fun: state.fun,
+    // sideways on a phone the lever (or in automatic mode the buttons) sits in a top corner: the HUD lays its panels out around it
+    lever: touch && !hud.portrait ? (state.automatic ? $('touch').querySelector('.t-util') : touch.gateEl).getBoundingClientRect() : null, lhd: document.body.classList.contains('lhd'), automatic: state.automatic,
   }, h);
 }
 
@@ -487,20 +491,26 @@ document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('clic
 setLayout(layoutName);
 // Touch controls. The driving side puts the gears under the hand that works the lever in that car.
 let touch = null;
-const revBtn = $('touch').querySelector('.t-rev');
+const prnd = [...$('touch').querySelectorAll('.t-prnd button')];
+let prndShown = null;
 if (TOUCH) {
   touch = new TouchControls($('touch'), canvas);
   const press = code => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); window.dispatchEvent(new KeyboardEvent('keyup', { code })); };
   const acts = { engine: 'KeyI', view: 'KeyV', reset: 'KeyT', pause: 'KeyP', mute: 'KeyM', lights: 'KeyL' };
   for (const [act, code] of Object.entries(acts)) touch.on(act, () => press(code));
   touch.on('gear', g => requestGear(g)); // the H-pattern lever
-  // Fun mode's D / R button: reverse, or back to driving forwards, once the car has stopped
-  touch.on('reverse', () => {
-    if (!state.started || state.paused) return;
-    if (Math.abs(dt.v) > 0.8) { hud.toast('Stop first, then tap R', 'warn'); return; }
-    requestGear(dt.gear < 0 ? 0 : -1); state.shiftWait = 0;
-    hud.toast(dt.gear < 0 ? 'Reverse: lift the phone to back up' : 'Drive');
-  });
+  // Automatic mode's selector: P parks (gear free, car held), R reverses and D drives, both only
+  // from a stop the way they'd go against the car's motion; N is always allowed
+  const selectRange = r => {
+    if (!state.started || state.paused || r === state.range) return;
+    const still = Math.abs(dt.v) < 0.8;
+    if ((r === 'P' || r === 'R') && !still) { hud.toast(`Stop before ${r}`, 'warn'); return; }
+    if (r === 'D' && dt.v < -0.8) { hud.toast('Stop before D', 'warn'); return; }
+    const g = r === 'R' ? -1 : r === 'D' ? driveGear() : 0;
+    requestGear(g); if (dt.gear !== g) return;
+    state.range = r; state.shiftWait = 0;
+  };
+  for (const r of 'PRND') touch.on('prnd-' + r, () => selectRange(r));
   const setSide = side => {
     document.body.classList.toggle('lhd', side === 'lhd');
     document.querySelectorAll('[data-side]').forEach(x => x.setAttribute('aria-pressed', x.dataset.side === side));
@@ -510,17 +520,17 @@ if (TOUCH) {
   let side = 'rhd';
   try { if (localStorage.getItem('clutchrun-side') === 'lhd') side = 'lhd'; } catch (e) {}
   setSide(side);
-  // Fun mode: automatic gears, and lift the phone to accelerate
-  const setFun = on => {
-    state.fun = touch.fun = on;
-    document.body.classList.toggle('fun', on);
-    document.querySelectorAll('[data-fun]').forEach(x => x.setAttribute('aria-pressed', (x.dataset.fun === '1') === on));
-    try { localStorage.setItem('clutchrun-fun', on ? '1' : '0'); } catch (e) {}
+  // Automatic mode: automatic gears, and lift the phone to accelerate
+  const setAutomatic = on => {
+    state.automatic = touch.automatic = on;
+    document.body.classList.toggle('automatic', on);
+    document.querySelectorAll('[data-automatic]').forEach(x => x.setAttribute('aria-pressed', (x.dataset.automatic === '1') === on));
+    try { localStorage.setItem('clutchrun-automatic', on ? '1' : '0'); } catch (e) {}
   };
-  document.querySelectorAll('[data-fun]').forEach(b => b.addEventListener('click', () => setFun(b.dataset.fun === '1')));
-  let fun = false;
-  try { fun = localStorage.getItem('clutchrun-fun') === '1'; } catch (e) {}
-  setFun(fun);
+  document.querySelectorAll('[data-automatic]').forEach(b => b.addEventListener('click', () => setAutomatic(b.dataset.automatic === '1')));
+  let automatic = false;
+  try { automatic = localStorage.getItem('clutchrun-automatic') === '1'; } catch (e) {}
+  setAutomatic(automatic);
 }
 // Volume: sliders on the start and pause screens and in the game's corner panel, - and = while
 // driving, remembered in the browser
@@ -585,14 +595,14 @@ document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click'
 $('go').addEventListener('click', () => {
   if (touch) {
     // both need this tap: iPhones ask for motion access, Android goes full screen
-    touch.enableTilt().then(ok => { setTimeout(() => { if (!ok || !touch.tilting) hud.toast(state.fun ? 'No tilt here: drag to steer, press Accel to go' : 'No tilt here: drag sideways on the road to steer', 'warn'); }, 1500); });
+    touch.enableTilt().then(ok => { setTimeout(() => { if (!ok || !touch.tilting) hud.toast(state.automatic ? 'No tilt here: drag to steer, press Accel to go' : 'No tilt here: drag sideways on the road to steer', 'warn'); }, 1500); });
     const el = document.documentElement;
     try { if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); } catch (e) {}
     dt.autoClutch = true; // one thumb can't hold the clutch and the accelerator at once
     $('touch').hidden = false;
   }
   sound.init(); state.started = true; $('menu').hidden = true; $('hud-vol').hidden = false;
-  hud.toast(state.fun ? 'Lift the phone to go, lay it flat to slow down' : touch ? 'Push the lever up into 1st, then press Accel' : `Press 1 for first gear, then ${K.goName} to go`, 'fg');
+  hud.toast(state.automatic ? 'Tap D, then lift the phone to go' : touch ? 'Push the lever up into 1st, then press Accel' : `Press 1 for first gear, then ${K.goName} to go`, 'fg');
   canvas.focus();
 });
 $('resume').addEventListener('click', () => setPaused(false));
